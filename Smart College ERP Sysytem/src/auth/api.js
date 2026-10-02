@@ -318,8 +318,11 @@ adminAiChat: (message, file) => {
 },
 
 // SnapClass AI Biometric & Attendance Suite
-faceLogin: (image, email) =>
-  request('/auth/face-login', { method: 'POST', body: JSON.stringify({ image, email }) }),
+faceLogin: (image, email, liveDescriptor) =>
+  request('/auth/face-login', { method: 'POST', body: JSON.stringify({ image, email, liveDescriptor }) }),
+
+getFaceDescriptor: (email) =>
+  request('/auth/face-descriptor?email=' + encodeURIComponent(email), { method: 'GET' }),
 
 enrollBiometrics: (data) =>
   request('/profile/biometrics', { method: 'POST', body: JSON.stringify(data) }),

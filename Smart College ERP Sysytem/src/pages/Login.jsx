@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { api } from '../auth/api';
 import { setToken, setUser } from '../auth/storage';
 import './login.css';
+import { extractFaceDescriptor, faceDistance, ensureModelsLoaded } from '../hooks/useFaceApi';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -16,6 +17,7 @@ export default function Login() {
   const [scanStatus, setScanStatus] = useState('Position face in frame to sign in');
   const [isVerifying, setIsVerifying] = useState(false);
   const [successUser, setSuccessUser] = useState(null);
+  const [modelsReady, setModelsReady] = useState(false);
 
   const faceVideoRef = useRef(null);
   const faceStreamRef = useRef(null);
@@ -26,6 +28,11 @@ export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
   const from = location.state?.from?.pathname || '/';
+
+  // Pre-load face-api neural network models
+  useEffect(() => {
+    ensureModelsLoaded().then(ok => setModelsReady(ok));
+  }, []);
 
   useEffect(() => {
     if (showFaceModal) {
@@ -54,6 +61,18 @@ export default function Login() {
 
   function startAutoScanner() {
     stopAutoScanner();
+    // Check email before starting auto-scan
+    if (!email || !email.includes('@')) {
+      setScanStatus('📧 Enter your email above first, then face scan will start...');
+      // Re-check every 2 seconds until email is entered
+      autoScanTimerRef.current = setInterval(() => {
+        if (email && email.includes('@')) {
+          clearInterval(autoScanTimerRef.current);
+          startAutoScanner();
+        }
+      }, 2000);
+      return;
+    }
     setScanStatus('🟢 Live Scan Active: Looking for your face...');
     autoScanTimerRef.current = setInterval(async () => {
       if (isScanningRef.current || isSuccessRef.current) return;
@@ -85,26 +104,71 @@ export default function Login() {
         }
       } catch {}
 
+      if (!email || !email.includes('@')) {
+        setScanStatus('📧 Enter your email above first to begin face verification');
+        return;
+      }
+
+      if (!modelsReady) {
+        setScanStatus('⏳ Loading face recognition model...');
+        return;
+      }
+
       isScanningRef.current = true;
       setIsVerifying(true);
-      setScanStatus('⚡ Analyzing biometric face match...');
+      setScanStatus('⚡ Detecting your face...');
 
       try {
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-        const res = await api.faceLogin(dataUrl, email.trim() || undefined);
+        // Step 1: Extract live face descriptor using neural network
+        const liveDescriptor = await extractFaceDescriptor(faceVideoRef.current);
+        if (!liveDescriptor) {
+          setScanStatus('🔍 No face detected — center your face in frame');
+          return;
+        }
+
+        setScanStatus('🔐 Verifying identity...');
+
+        // Step 2: Fetch user's enrolled face descriptor from server
+        const userEmail = email.trim().toLowerCase();
+        let enrolledDescriptor = null;
+        try {
+          const profileRes = await api.getFaceDescriptor(userEmail);
+          enrolledDescriptor = profileRes?.faceDescriptor;
+        } catch {
+          setScanStatus('❌ No Face ID enrolled for this account. Please enroll in Profile first.');
+          setFaceErr('Face ID not enrolled. Sign in with password, then go to Profile to enroll Face ID.');
+          return;
+        }
+
+        if (!enrolledDescriptor || enrolledDescriptor.length === 0) {
+          setFaceErr('Face ID not enrolled for this account. Please sign in with password first, then enroll in Profile.');
+          setScanStatus('❌ No Face ID enrolled');
+          return;
+        }
+
+        // Step 3: Neural distance comparison (Euclidean)
+        // Same person: ~0.3–0.5, Different person: >0.6
+        const dist = faceDistance(liveDescriptor, enrolledDescriptor);
+        console.log('[FaceLogin] Neural face distance:', dist);
+
+        if (dist > 0.52) {
+          setScanStatus(`🚫 Face does not match (distance: ${dist.toFixed(2)}). Try better lighting.`);
+          return;
+        }
+
+        // Step 4: Server authentication (face passed, now get token)
+        setScanStatus('✅ Face matched! Authenticating...');
+        const res = await api.faceLogin(null, userEmail, liveDescriptor);
         if (res?.token && res?.user) {
           isSuccessRef.current = true;
           stopAutoScanner();
           setSuccessUser(res.user);
           const userName = res.user.name || res.user.firstName || res.user.email || 'User';
           const roleDisplay = res.user.role ? (res.user.role.charAt(0).toUpperCase() + res.user.role.slice(1)) : 'User';
-          setScanStatus(`🎉 Verified: ${userName} (${roleDisplay})! Logging in...`);
+          setScanStatus(`🎉 Welcome back, ${userName}! Logging in...`);
           setToken(res.token);
           setUser(res.user);
-          sessionStorage.setItem('erp_welcome_msg', JSON.stringify({
-            type: 'returning',
-            name: userName
-          }));
+          sessionStorage.setItem('erp_welcome_msg', JSON.stringify({ type: 'returning', name: userName }));
           setTimeout(() => {
             closeFaceModal();
             const fallbackPath = res.user.role === 'admin'
@@ -112,12 +176,11 @@ export default function Login() {
               : res.user.role === 'faculty'
               ? '/faculty/dashboard'
               : '/student/dashboard';
-            const next = res?.redirectPath || fallbackPath;
-            navigate(next, { replace: true });
+            navigate(res?.redirectPath || fallbackPath, { replace: true });
           }, 700);
         }
-      } catch {
-        // Keep scanning seamlessly without jarring popups
+      } catch (scanErr) {
+        console.error('[FaceLogin]', scanErr);
         setScanStatus('🟢 Align face clearly inside the frame');
       } finally {
         if (!isSuccessRef.current) {
@@ -166,6 +229,11 @@ export default function Login() {
 
   async function handleFaceScan() {
     if (!faceVideoRef.current || isScanningRef.current || isSuccessRef.current) return;
+    // Email is required for face login security
+    if (!email || !email.includes('@')) {
+      setFaceErr('Please enter your registered email address above before scanning your face. This is required for security.');
+      return;
+    }
     if (faceVideoRef.current.readyState < 2 || faceVideoRef.current.videoWidth === 0) {
       setFaceErr('Camera is still loading. Please wait a moment.');
       return;
@@ -380,7 +448,7 @@ export default function Login() {
             </div>
             
             <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8' }}>
-              Look directly into the camera. Face recognition will sign you in <strong>automatically</strong>.
+              Enter your <strong>email below</strong>, then look into the camera. Face ID will verify your identity automatically.
             </p>
 
             {/* Live Scanner Status Badge */}
@@ -429,7 +497,7 @@ export default function Login() {
 
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
               <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>
-                Your Registered Email (Optional — for direct 1-to-1 account verification):
+                Your Registered Email (Required for Face ID login):
               </label>
               <input
                 type="email"

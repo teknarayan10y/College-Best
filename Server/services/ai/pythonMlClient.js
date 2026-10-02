@@ -1047,12 +1047,12 @@ async function extractFaceEmbedding(imageBase64) {
 /**
  * SnapClass AI Biometric: Match classroom photo against student embeddings
  */
-async function matchClassPhotoFaces(imageBase64, candidates = [], threshold = 0.60) {
+async function matchClassPhotoFaces(imageBase64, candidates = [], threshold = 0.35) {
   const result = await postToMl('/api/ml/face-match', {
     image: imageBase64,
     candidates,
     threshold
-  }, 15000);
+  }, 30000);
   return result;
 }
 

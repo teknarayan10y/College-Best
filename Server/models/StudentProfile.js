@@ -54,6 +54,7 @@ cgpa: String,
 
     // AI Biometrics (SnapClass Engine)
     faceEmbedding: { type: [Number], default: [] },
+    faceDescriptor: { type: [Number], default: [] }, // 128-dim neural descriptor from face-api.js
     voiceEmbedding: { type: [Number], default: [] },
     biometricRegistered: { type: Boolean, default: false }
   },

@@ -2,15 +2,31 @@ const Attendance = require('../models/Attendance');
 const { createNotification } = require('./notificationController');
 const Notification = require('../models/Notification');
 
-function normalizeDate(v) { const d = new Date(v); d.setHours(0,0,0,0); return d; }
+function normalizeDate(v, fallbackDaysAgo = 0) {
+  if (!v || v === 'undefined' || v === 'null') {
+    const d = new Date();
+    d.setDate(d.getDate() - fallbackDaysAgo);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  const d = new Date(v);
+  if (isNaN(d.getTime())) {
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() - fallbackDaysAgo);
+    fallback.setHours(0, 0, 0, 0);
+    return fallback;
+  }
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 exports.myAttendance = async (req, res, next) => {
   try {
     const { from, to, date, session } = req.query;
     const q = { userId: req.user._id };
     if (date) q.date = normalizeDate(date);
-    if (from) q.date = Object.assign(q.date || {}, { $gte: normalizeDate(from) });
-    if (to) q.date = Object.assign(q.date || {}, { $lte: normalizeDate(to) });
+    if (from) q.date = Object.assign(q.date || {}, { $gte: normalizeDate(from, 30) });
+    if (to) q.date = Object.assign(q.date || {}, { $lte: normalizeDate(to, 0) });
 
     const docs = await Attendance.find(q).sort({ date: -1 }).lean();
 

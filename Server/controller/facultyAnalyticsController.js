@@ -4,7 +4,23 @@ const Attendance = require('../models/Attendance');
 const Course = require('../models/Course');
 const StudentProfile = require('../models/StudentProfile');
 
-function normalizeDate(v) { const d = new Date(v); d.setHours(0,0,0,0); return d; }
+function normalizeDate(v, fallbackDaysAgo = 0) {
+  if (!v || v === 'undefined' || v === 'null' || v === 'Invalid Date') {
+    const d = new Date();
+    d.setDate(d.getDate() - fallbackDaysAgo);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+  const d = new Date(v);
+  if (isNaN(d.getTime())) {
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() - fallbackDaysAgo);
+    fallback.setHours(0, 0, 0, 0);
+    return fallback;
+  }
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 function lc(s) { return (s || '').trim().toLowerCase(); }
 
 async function resolveStudentsForFacultyCourse(courseId, userId) {
@@ -101,8 +117,8 @@ exports.subjectSummary = async (req, res, next) => {
     const courses = await Course.find({ faculty: req.user._id, isActive: true }).select('name');
     const lcSubjects = new Set(courses.map(c => lc(c.name)));
 
-    const dFrom = normalizeDate(from);
-    const dTo = normalizeDate(to);
+    const dFrom = normalizeDate(from, 30);
+    const dTo = normalizeDate(to, 0);
 
     // Get all students across these courses (same approach as above, but coarse)
     const allStudents = new Set();

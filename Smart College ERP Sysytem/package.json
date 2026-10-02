@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@vladmandic/face-api": "^1.7.15",
     "dom": "^0.0.3",
     "react": "^19.2.3",
     "react-circular-progressbar": "^2.2.0",

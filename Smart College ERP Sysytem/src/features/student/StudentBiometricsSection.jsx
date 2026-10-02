@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { api } from '../../auth/api';
+import { extractFaceDescriptor, ensureModelsLoaded } from '../../hooks/useFaceApi';
 
 export default function StudentBiometricsSection({ profile, onUpdated }) {
   const [cameraActive, setCameraActive] = useState(false);
@@ -74,7 +75,7 @@ export default function StudentBiometricsSection({ profile, onUpdated }) {
         samples++;
       }
       const avgBrightness = samples > 0 ? sum / samples : 0;
-      if (avgBrightness < 15) {
+      if (avgBrightness < 4) {
         setMsg({
           text: '⚠️ Camera capture was pitch-black (avg brightness: ' + Math.round(avgBrightness) + '/255). Please ensure webcam shutter is open and room is lit, then try again.',
           type: 'error'
@@ -136,9 +137,31 @@ export default function StudentBiometricsSection({ profile, onUpdated }) {
     setLoading(true);
     setMsg({ text: '', type: '' });
     try {
+      // Extract real neural face descriptor using face-api.js before saving
+      let faceDescriptor = null;
+      if (capturedPhoto) {
+        try {
+          await ensureModelsLoaded();
+          const img = new Image();
+          await new Promise((resolve, reject) => { img.onload = resolve; img.onerror = reject; img.src = capturedPhoto; });
+          faceDescriptor = await extractFaceDescriptor(img);
+          if (!faceDescriptor) {
+            setMsg({ text: '❌ No face detected. Ensure your face is clearly visible and well-lit, then retry.', type: 'error' });
+            setLoading(false);
+            return;
+          }
+          console.log('[Enrollment] Neural descriptor ready, dim:', faceDescriptor.length);
+        } catch (fdErr) {
+          setMsg({ text: '❌ Face analysis error: ' + fdErr.message, type: 'error' });
+          setLoading(false);
+          return;
+        }
+      }
+
       const res = await api.enrollBiometrics({
         image: capturedPhoto,
-        audio: recordedAudio
+        audio: recordedAudio,
+        faceDescriptor
       });
       setSavedFaceSuccess(true);
       setMsg({ text: '🎉 FaceID & Voice biometric fingerprint enrolled successfully into your profile!', type: 'success' });

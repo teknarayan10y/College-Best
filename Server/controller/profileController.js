@@ -70,18 +70,27 @@ async function updateProfile(req, res) {
 async function enrollBiometrics(req, res) {
   try {
     const userId = req.user.sub;
-    const { image, audio } = req.body;
+    const { image, audio, faceDescriptor } = req.body;
 
     const updates = {};
+
+    // Save the client-side face-api.js neural descriptor (128-dim, used for login verification)
+    if (Array.isArray(faceDescriptor) && faceDescriptor.length === 128) {
+      updates.faceDescriptor = faceDescriptor;
+      updates.biometricRegistered = true;
+      console.log(`[Biometrics] Neural face descriptor enrolled for user: ${userId} (128-dim from face-api.js)`);
+    }
+
     if (image) {
       const faceResult = await extractFaceEmbedding(image);
       const isInvalid = !faceResult || !faceResult.embedding || faceResult.embedding.length === 0 || faceResult.embedding.every(v => v === 0);
       if (!isInvalid) {
         updates.faceEmbedding = faceResult.embedding;
         updates.biometricRegistered = true;
-        console.log(`[Biometrics] Successfully enrolled face embedding for user: ${userId} (${faceResult.embedding.length} descriptors)`);
-      } else {
-        const errorMsg = faceResult?.error || 'Could not detect facial features. The camera capture was pitch-black or poorly lit. Please ensure your camera is previewing your face clearly before snapping.';
+        console.log(`[Biometrics] Legacy face embedding enrolled for user: ${userId} (${faceResult.embedding.length} d)`);
+      } else if (!faceDescriptor) {
+        // Only fail if we also don't have the neural descriptor
+        const errorMsg = faceResult?.error || 'Could not detect facial features. Please ensure your camera is showing your face clearly.';
         return res.status(400).json({ message: errorMsg });
       }
     }

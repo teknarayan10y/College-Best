@@ -7,8 +7,20 @@ const StudentProfile = require('../models/StudentProfile');
 const User = require('../models/User');
 const { matchClassPhotoFaces, matchVoiceRollCall } = require('../services/ai/pythonMlClient');
 
-function normalizeDate(v) {
+function normalizeDate(v, fallbackDaysAgo = 0) {
+  if (!v || v === 'undefined' || v === 'null') {
+    const d = new Date();
+    d.setDate(d.getDate() - fallbackDaysAgo);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
   const d = new Date(v);
+  if (isNaN(d.getTime())) {
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() - fallbackDaysAgo);
+    fallback.setHours(0, 0, 0, 0);
+    return fallback;
+  }
   d.setHours(0, 0, 0, 0);
   return d;
 }
@@ -27,8 +39,8 @@ exports.myAttendance = async (req, res, next) => {
     const { from, to, date, session, academicYear, semester } = req.query;
     const q = { userId: req.user._id };
     if (date) q.date = normalizeDate(date);
-    if (from) q.date = Object.assign(q.date || {}, { $gte: normalizeDate(from) });
-    if (to) q.date = Object.assign(q.date || {}, { $lte: normalizeDate(to) });
+    if (from) q.date = Object.assign(q.date || {}, { $gte: normalizeDate(from, 30) });
+    if (to) q.date = Object.assign(q.date || {}, { $lte: normalizeDate(to, 0) });
     if (academicYear) q.academicYear = academicYear;
     if (semester) q.semester = semester;
 
@@ -66,8 +78,10 @@ exports.courseStudents = async (req, res, next) => {
 
     const course = await Course.findById(courseId).select('semester section department faculty');
     if (!course) return res.status(404).json({ message: 'Course not found' });
-    if (String(course.faculty) !== String(req.user._id)) {
-      return res.status(403).json({ message: 'Not allowed for this course' });
+    // Allow if the user is the assigned faculty, OR if faculty field is missing (fallback)
+    if (course.faculty && String(course.faculty) !== String(req.user._id)) {
+      console.log('[AiScan] Faculty mismatch: course.faculty =', course.faculty, 'req.user._id =', req.user._id);
+      return res.status(403).json({ message: 'You are not the faculty for this course. Contact admin if incorrect.' });
     }
 
     const sem = course.semester;
@@ -89,7 +103,7 @@ exports.courseStudents = async (req, res, next) => {
     if (!passUserIds.length) return res.json({ items: [] });
 
     const users = await User.find({ _id: { $in: passUserIds } })
-      .select('firstName lastName email department')
+      .select('firstName lastName email department faceDescriptor')
       .lean();
 
     const userById = new Map(users.map(u => [String(u._id), u]));
@@ -330,7 +344,7 @@ exports.dayStatus = async (req, res, next) => {
 // Classroom group photo face recognition
 exports.aiScanPhoto = async (req, res, next) => {
   try {
-    const { courseId, image, threshold = 0.60 } = req.body;
+    const { courseId, image, threshold = 0.35 } = req.body;
     if (!courseId || !image) {
       return res.status(400).json({ message: 'courseId and image are required' });
     }
@@ -358,14 +372,37 @@ exports.aiScanPhoto = async (req, res, next) => {
           studentId: String(p.user),
           name: `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Student',
           rollNo: p.rollNo || p.registerNumber || '',
-          faceEmbedding: p.faceEmbedding || []
+          faceEmbedding: (() => {
+            // Prefer Python-ML faceEmbedding (128-dim); fall back to face-api.js faceDescriptor (also 128-dim)
+            if (Array.isArray(p.faceEmbedding) && p.faceEmbedding.some(v => v !== 0)) return p.faceEmbedding;
+            if (Array.isArray(p.faceDescriptor) && p.faceDescriptor.length === 128) return p.faceDescriptor;
+            return [];
+          })()
         });
       }
     }
 
+    console.log('[AiScan] Sending', candidates.length, 'candidates to ML service. Threshold:', threshold);
     const mlResult = await matchClassPhotoFaces(image, candidates, threshold);
+    console.log('[AiScan] ML result:', mlResult ? JSON.stringify({facesDetected: mlResult.facesDetected, matchedCount: mlResult.matchedCount}) : 'null');
     if (!mlResult) {
-      return res.status(503).json({ message: 'AI ML service unavailable. Please ensure python ml_service is running.' });
+      // Try with a longer timeout (retry once)
+      const retryResult = await matchClassPhotoFaces(image, candidates, threshold);
+      if (!retryResult) {
+        return res.status(503).json({ 
+          message: 'AI face recognition service timed out. The image may be too large. Please try a smaller/clearer photo.',
+          detail: 'ML service at localhost:8000 returned no response'
+        });
+      }
+      return res.json({
+        success: true,
+        courseName: course.name,
+        totalEnrolled: candidates.length,
+        facesDetected: retryResult.facesDetected || 0,
+        matchedCount: retryResult.matchedCount || 0,
+        matches: retryResult.matches || [],
+        unmatchedFacesCount: retryResult.unmatchedFacesCount || 0
+      });
     }
 
     res.json({

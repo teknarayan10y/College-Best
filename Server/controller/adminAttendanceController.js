@@ -93,8 +93,8 @@ exports.summary = async (req, res, next) => {
   try {
     const { from, to, academicYear, semester } = req.query;
     const match = {};
-    if (from) match.date = Object.assign(match.date || {}, { $gte: normalizeDate(from) });
-    if (to) match.date = Object.assign(match.date || {}, { $lte: normalizeDate(to) });
+    if (from) match.date = Object.assign(match.date || {}, { $gte: normalizeDate(from, 30) });
+    if (to) match.date = Object.assign(match.date || {}, { $lte: normalizeDate(to, 0) });
     if (academicYear) match.academicYear = academicYear;
     if (semester) match.semester = semester;
     const agg = await Attendance.aggregate([

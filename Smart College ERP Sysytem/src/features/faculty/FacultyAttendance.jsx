@@ -121,6 +121,34 @@ export default function FacultyAttendance() {
     return () => { cancel = true; };
   }, [tab, courseId]);
 
+  // Restore saved attendance statuses from DB on date/course/session change (persistence)
+  useEffect(() => {
+    if (tab !== 'students' || !courseId || !date) return;
+    let cancel = false;
+    api.facultyDayStatus({ date, courseId })
+      .then(res => {
+        if (cancel) return;
+        const list = Array.isArray(res && res.items) ? res.items : [];
+        if (!list.length) return;
+        setAtt(prev => {
+          const map = { ...prev };
+          for (const it of list) {
+            if (it.studentId) {
+              map[it.studentId] = {
+                ...(map[it.studentId] || {}),
+                status: it.status,
+                subject: it.subject || '',
+                topic: it.topic || ''
+              };
+            }
+          }
+          return map;
+        });
+      })
+      .catch(() => {});
+    return () => { cancel = true; };
+  }, [tab, courseId, date, session]);
+
   // Subject-wise semester overall (using analytics subject-summary)
   useEffect(() => {
     if (!subject) return;
@@ -295,23 +323,42 @@ export default function FacultyAttendance() {
     setAtt(prev => ({ ...prev, ...map }));
   }
 
-  // SnapClass AI Attendance Handler
-  function handleApplyAiAttendance(matchedStudentIds = []) {
-    if (!matchedStudentIds.length) return;
+  // SnapClass AI Attendance Handler (Deep Neural Network Verified)
+  function handleApplyAiAttendance(payload = []) {
+    const presentIds = Array.isArray(payload) ? payload : (payload?.presentIds || []);
+    const absentIds = Array.isArray(payload) ? [] : (payload?.absentIds || []);
+
     const map = {};
-    for (const id of matchedStudentIds) {
-      map[id] = { ...(att[id] || {}), status: 'PRESENT', subject };
+    for (const id of presentIds) {
+      map[id] = { ...(att[id] || {}), status: 'PRESENT', subject: subject || (course?.name || 'Class') };
       api.facultyMarkStudentSession({
         studentId: id,
         date,
         session,
         status: 'PRESENT',
-        subject: subject || 'AI Attendance',
-        topic: 'SnapClass AI Verified',
+        subject: subject || (course?.name || 'AI Attendance'),
+        topic: 'SnapClass AI Verified (Face Match)',
         courseId
       }).catch(() => {});
     }
-    setAtt(prev => ({ ...prev, ...map }));
+
+    for (const id of absentIds) {
+      map[id] = { ...(att[id] || {}), status: 'ABSENT', subject: subject || (course?.name || 'Class') };
+      api.facultyMarkStudentSession({
+        studentId: id,
+        date,
+        session,
+        status: 'ABSENT',
+        subject: subject || (course?.name || 'AI Attendance'),
+        topic: 'SnapClass AI Rejected (Face Mismatch)',
+        courseId
+      }).catch(() => {});
+    }
+
+    if (Object.keys(map).length > 0) {
+      setAtt(prev => ({ ...prev, ...map }));
+      setTab('students');
+    }
   }
 
   return (

@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema(
     role: { type: String, enum: ['admin', 'faculty', 'student'], default: 'student' },
     isActive: { type: Boolean, default: true },
     faceEmbedding: { type: [Number], default: [] },
+    faceDescriptor: { type: [Number], default: [] },
     voiceEmbedding: { type: [Number], default: [] },
     biometricRegistered: { type: Boolean, default: false }
   },

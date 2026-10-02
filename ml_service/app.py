@@ -12,6 +12,12 @@ import base64
 import urllib.request
 import json
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from socketserver import ThreadingMixIn
+
+class ThreadingHTTPServer(ThreadingMixIn, HTTPServer):
+    daemon_threads = True
+    allow_reuse_address = True
+
 import numpy as np
 import pandas as pd
 
@@ -19,13 +25,19 @@ PORT = 8000
 
 class NexusMindMLHandler(BaseHTTPRequestHandler):
     def _send_response(self, status_code, data):
-        self.send_response(status_code)
-        self.send_header('Content-Type', 'application/json')
-        self.send_header('Access-Control-Allow-Origin', '*')
-        self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type')
-        self.end_headers()
-        self.wfile.write(json.dumps(data).encode('utf-8'))
+        try:
+            body = json.dumps(data).encode('utf-8')
+            self.send_response(status_code)
+            self.send_header('Content-Type', 'application/json')
+            self.send_header('Content-Length', str(len(body)))
+            self.send_header('Connection', 'close')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+            self.end_headers()
+            self.wfile.write(body)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError, OSError):
+            pass
 
     def do_OPTIONS(self):
         self.send_response(200)
@@ -771,44 +783,34 @@ class NexusMindMLHandler(BaseHTTPRequestHandler):
 
     def _extract_canonical_face_embedding(self, face_pil):
         """
-        Extracts a normalized 128-dimensional biometric descriptor vector
-        from a cropped face image using multi-block spatial luminance & texture moments.
-        Rejects black, empty, or unlit frames.
+        Produces a consistent 128-dimensional face embedding using:
+        - 64 block mean values (8x8 grid of 8x8 blocks on 64x64 normalized grayscale)
+        - 64 block std dev values
+        Total: 128 dims, L2-normalized.
+        This matches the format stored in StudentProfile.faceEmbedding.
         """
         try:
             from PIL import ImageOps
             gray = face_pil.convert('L')
             arr_raw = np.array(gray, dtype=np.float32)
-            # Check if frame is empty, pitch-black or flat (no variance)
-            if np.mean(arr_raw) < 5.0 or np.std(arr_raw) < 2.0:
+
+            # Reject black/empty frames
+            if np.mean(arr_raw) < 3.0 or np.std(arr_raw) < 5.0:
                 return None
 
-            # Contrast equalization standardizes lighting across environments
             gray_eq = ImageOps.equalize(gray).resize((64, 64))
             arr = np.array(gray_eq, dtype=np.float32) / 255.0
 
-            # Try HOG (Histogram of Oriented Gradients) with exact 128 dimensions
-            try:
-                from skimage.feature import hog
-                h = hog(arr, orientations=8, pixels_per_cell=(16, 16), cells_per_block=(1, 1))
-                h = h - np.mean(h)
-                norm = np.linalg.norm(h)
-                if norm > 0.01:
-                    return (h / norm).tolist()
-            except Exception:
-                pass
-
-            # Fallback to multi-block spatial luminance & texture moments (128 dims)
+            # 8x8 grid of 8x8 blocks
             blocks = [arr[r*8:(r+1)*8, c*8:(c+1)*8] for r in range(8) for c in range(8)]
-            means = [float(np.mean(b)) for b in blocks]
-            stds = [float(np.std(b)) for b in blocks]
-            vec = np.array(means + stds, dtype=np.float32)
-            vec = vec - np.mean(vec)
-            norm = np.linalg.norm(vec)
-            if norm > 0.01:
-                vec /= norm
-                return vec.tolist()
-            return None
+            means = [float(np.mean(b)) for b in blocks]   # 64 values
+            stds  = [float(np.std(b))  for b in blocks]   # 64 values
+
+            raw = np.array(means + stds, dtype=np.float32)  # 128 dims
+            norm = np.linalg.norm(raw)
+            if norm < 0.01:
+                return None
+            return (raw / norm).tolist()
         except Exception as e:
             print(f"[FaceEmbedding] Extraction error: {e}")
             return None
@@ -851,7 +853,9 @@ class NexusMindMLHandler(BaseHTTPRequestHandler):
         # Central face bounding box fallback
         cw, ch = int(w * 0.65), int(h * 0.75)
         cx, cy = int((w - cw) / 2), int((h - ch) / 2)
-        return [[max(0, cx), max(0, cy), min(w, cw), min(h, ch)]]
+        central_box = [max(0, cx), max(0, cy), min(w, cw), min(h, ch)]
+        boxes.insert(0, central_box)
+        return boxes
 
     def _handle_face_extract(self, payload):
         """
@@ -896,71 +900,92 @@ class NexusMindMLHandler(BaseHTTPRequestHandler):
             if not img:
                 return self._send_response(400, {"success": False, "error": "No valid image provided"})
 
-            candidates = payload.get('candidates', []) # list of { studentId, name, rollNo, faceEmbedding }
-            threshold = float(payload.get('threshold', 0.50))
+            # Ensure image is not oversized for fast inference
+            w, h = img.size
+            if max(w, h) > 640:
+                scale = 640.0 / max(w, h)
+                img = img.resize((max(1, int(w * scale)), max(1, int(h * scale))))
+
+            candidates = payload.get('candidates', [])
+            threshold = float(payload.get('threshold', 0.35))
+
+            # Pre-filter and pre-normalize valid candidate vectors
+            valid_candidates = []
+            for cand in candidates:
+                c_emb = cand.get('faceEmbedding')
+                if not c_emb or len(c_emb) == 0:
+                    continue
+                if all(v == 0 for v in c_emb):
+                    continue
+                c_vec = np.array(c_emb, dtype=np.float32)
+                c_norm = np.linalg.norm(c_vec)
+                if c_norm < 1e-4:
+                    continue
+                c_vec /= c_norm
+                valid_candidates.append({
+                    "studentId": cand.get('studentId'),
+                    "name": cand.get('name', 'Student'),
+                    "rollNo": cand.get('rollNo', ''),
+                    "vec": c_vec
+                })
 
             boxes = self._find_face_candidate_boxes(img)
+            # Sort boxes by area descending, take top 12
+            boxes = sorted(boxes, key=lambda b: b[2] * b[3], reverse=True)[:12]
+
             matches = []
             matched_student_ids = set()
 
             for box in boxes:
-                x, y, w, h = box
-                face_crop = img.crop((x, y, x + w, y + h))
-                face_emb_list = self._extract_canonical_face_embedding(face_crop)
-                if not face_emb_list or all(v == 0 for v in face_emb_list):
-                    continue
-                face_emb = np.array(face_emb_list, dtype=np.float32)
-                face_emb = face_emb - np.mean(face_emb)
-                f_norm = np.linalg.norm(face_emb)
-                if f_norm < 1e-4:
-                    continue
-                face_emb /= f_norm
-
-                best_sim = -1.0
-                second_sim = -1.0
-                best_candidate = None
-
-                for cand in candidates:
-                    sid = cand.get('studentId')
-                    c_emb = cand.get('faceEmbedding')
-                    if not c_emb or len(c_emb) == 0 or sid in matched_student_ids:
+                try:
+                    x, y, w_box, h_box = box
+                    face_crop = img.crop((x, y, x + w_box, y + h_box))
+                    face_emb_list = self._extract_canonical_face_embedding(face_crop)
+                    if not face_emb_list or all(v == 0 for v in face_emb_list):
                         continue
-                    if all(v == 0 for v in c_emb):
+                    face_emb = np.array(face_emb_list, dtype=np.float32)
+                    f_norm = np.linalg.norm(face_emb)
+                    if f_norm < 1e-4:
                         continue
-                    
-                    c_vec = np.array(c_emb, dtype=np.float32)
-                    c_vec = c_vec - np.mean(c_vec)
-                    c_norm = np.linalg.norm(c_vec)
-                    if c_norm < 1e-4:
-                        continue
-                    c_vec /= c_norm
+                    face_emb /= f_norm
 
-                    sim = float(np.dot(face_emb, c_vec))
-                    if sim > best_sim:
-                        second_sim = best_sim
-                        best_sim = sim
-                        best_candidate = cand
-                    elif sim > second_sim:
-                        second_sim = sim
+                    best_sim = -1.0
+                    second_sim = -1.0
+                    best_candidate = None
 
-                # Require genuine biometric match:
-                # 1. Similarity must exceed threshold (default >= 0.65)
-                # 2. If multiple candidates, margin over second best must be at least 0.06
-                is_valid_match = False
-                if best_candidate and best_sim >= threshold:
-                    if len(candidates) <= 1 or (best_sim - second_sim >= 0.06) or best_sim >= 0.80:
+                    for cand in valid_candidates:
+                        sid = cand.get('studentId')
+                        if sid in matched_student_ids:
+                            continue
+                        c_vec = cand.get('vec')
+                        if c_vec.shape != face_emb.shape:
+                            continue
+
+                        sim = float(np.dot(face_emb, c_vec))
+                        if sim > best_sim:
+                            second_sim = best_sim
+                            best_sim = sim
+                            best_candidate = cand
+                        elif sim > second_sim:
+                            second_sim = sim
+
+                    is_valid_match = False
+                    if best_candidate and best_sim >= threshold:
                         is_valid_match = True
 
-                if is_valid_match:
-                    matched_student_ids.add(best_candidate.get('studentId'))
-                    matches.append({
-                        "studentId": best_candidate.get('studentId'),
-                        "name": best_candidate.get('name', 'Student'),
-                        "rollNo": best_candidate.get('rollNo', ''),
-                        "confidence": round(float(min(1.0, max(0.0, best_sim))), 3),
-                        "similarity": round(float(best_sim), 3),
-                        "box": box
-                    })
+                    if is_valid_match:
+                        matched_student_ids.add(best_candidate.get('studentId'))
+                        matches.append({
+                            "studentId": best_candidate.get('studentId'),
+                            "name": best_candidate.get('name', 'Student'),
+                            "rollNo": best_candidate.get('rollNo', ''),
+                            "confidence": round(float(min(1.0, max(0.0, best_sim))), 3),
+                            "similarity": round(float(best_sim), 3),
+                            "box": box
+                        })
+                except Exception as box_err:
+                    print(f"[FaceMatch] Box error: {box_err}")
+                    continue
 
             return self._send_response(200, {
                 "success": True,
@@ -1042,7 +1067,7 @@ class NexusMindMLHandler(BaseHTTPRequestHandler):
 
 def run(port=PORT):
     server_address = ('', port)
-    httpd = HTTPServer(server_address, NexusMindMLHandler)
+    httpd = ThreadingHTTPServer(server_address, NexusMindMLHandler)
     print(f"NexusMind Python ML Service running on http://localhost:{port}", flush=True)
     try:
         httpd.serve_forever()

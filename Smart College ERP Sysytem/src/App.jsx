@@ -45,6 +45,7 @@ import AdminSettings from "./features/admin/AdminSettings";
 
 /* -------- AUTH -------- */
 import Login from "./pages/Login";
+import LandingPage from "./pages/LandingPage";
 import Signup from "./pages/Signup";
 
 import "./App.css";
@@ -113,7 +114,7 @@ export default function App() {
       <Routes>
 
         {/* HOME */}
-        <Route path="/" element={<Home />} />
+        <Route path="/" element={<LandingPage />} />
 
         {/* ================= STUDENT ================= */}
         <Route path="/student" element={<StudentLayout />}>
