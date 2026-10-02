@@ -139,7 +139,10 @@ export default function StudentLayout() {
             <span>Assignments</span>
           </NavLink>
 
-          <NavLink to="/student/exams" className="nav-item">
+          <NavLink
+            to="/student/exams"
+            className={({ isActive }) => (isActive ? "nav-item active" : "nav-item")}
+          >
             <FaPen className="nav-icon" />
             <span>Exams</span>
           </NavLink>

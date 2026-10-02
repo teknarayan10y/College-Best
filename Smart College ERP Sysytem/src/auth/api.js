@@ -356,11 +356,17 @@ clearAllNotifications: () =>
 studentAttendanceTrends: () =>
   request('/student/attendance/trends'),
 
-// Multi-Factor Academic Risk Analysis
-studentAcademicRisk: () =>
-  request('/academic-risk/student'),
+  // Multi-Factor Academic Risk Analysis
+  studentAcademicRisk: () =>
+    request('/academic-risk/student'),
 
-facultyCourseAcademicRisk: (courseId) =>
-  request(`/academic-risk/faculty/${courseId}`)
+  facultyCourseAcademicRisk: (courseId) =>
+    request(`/academic-risk/faculty/${courseId}`),
+
+  // Student Subject-Wise Exam Marks
+  studentExamMarks: (params = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request(`/student/exams/marks${qs ? `?${qs}` : ''}`);
+  }
 };
 
