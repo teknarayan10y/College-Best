@@ -11,6 +11,7 @@ const User = require('../models/User');
 const { searchKnowledgeBase } = require('../services/ragService');
 const { extractTextFromFile } = require('../services/fileParser');
 const pythonMlClient = require('../services/ai/pythonMlClient');
+const { handleMarksEntryCommand } = require('../services/aiMarksEntry');
 
 /**
  * Universal Schema-Agnostic Field Normalizer
@@ -1089,6 +1090,19 @@ exports.chatWithFacultyAi = async (req, res) => {
 
     if (!message || typeof message !== 'string' || !message.trim()) {
       return res.status(400).json({ message: 'Message text is required' });
+    }
+
+    if (!req.file) {
+      const marksEntry = await handleMarksEntryCommand(message, userId);
+      if (marksEntry.handled) {
+        return res.json({
+          success: true,
+          reply: marksEntry.reply,
+          model: 'Faculty AI Marks Entry',
+          sources: [],
+          timestamp: new Date().toISOString()
+        });
+      }
     }
 
     // Parse attached file if present (ChatGPT-style)

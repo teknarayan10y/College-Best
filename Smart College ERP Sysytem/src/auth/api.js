@@ -248,6 +248,9 @@ adminAttendanceSummary: (params = {}) => {
     return request(`/student/attendance${qs ? `?${qs}` : ''}`, { method: 'GET' });
   },
 
+  // Student exam marks (read-only)
+  studentMarks: () => request('/student/marks', { method: 'GET' }),
+
   // Student assignments
 studentAssignments: (params = {}) => {
   return request(`/student/assignments${toQS(params)}`, { method: 'GET' });
