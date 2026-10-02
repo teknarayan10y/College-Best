@@ -1,0 +1,49 @@
+.create-faculty {
+  background: #0b1220;
+  padding: 28px;
+  color: #e5e7eb;
+}
+
+.create-faculty h1 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.create-faculty p {
+  margin-top: 6px;
+  color: #94a3b8;
+}
+
+.faculty-form {
+  margin-top: 24px;
+  background: #111827;
+  padding: 24px;
+  border-radius: 16px;
+}
+
+.grid-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18px;
+}
+
+.field span {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.field input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px;
+  background: #1f2937;
+  border: 1px solid #374151;
+  color: #f9fafb;
+  border-radius: 8px;
+}
+
+.actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 14px;
+}

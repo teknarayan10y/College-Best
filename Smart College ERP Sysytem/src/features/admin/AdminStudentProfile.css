@@ -1,0 +1,119 @@
+/* ===============================
+   ADMIN STUDENT PROFILE
+================================ */
+
+.admin-student-profile {
+  background: #0b1220;
+  padding: 24px;
+  min-height: 100vh;
+  color: #e5e7eb;
+}
+
+.admin-student-profile h1 {
+  font-size: 26px;
+  margin-bottom: 6px;
+  color: #f8fafc;
+}
+
+.admin-student-profile p {
+  color: #94a3b8;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+/* PROFILE CARD */
+.profile-card {
+  background: #111827;
+  padding: 22px;
+  border-radius: 16px;
+  box-shadow: 0 12px 36px rgba(0,0,0,0.55);
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
+}
+
+.profile-card div {
+  font-size: 14px;
+  color: #e5e7eb;
+}
+
+.profile-card strong {
+  color: #9ca3af;
+  font-weight: 500;
+}
+
+/* STATUS */
+.status {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  margin-left: 8px;
+}
+
+.status.active {
+  background: rgba(34,197,94,0.15);
+  color: #22c55e;
+}
+
+/* ACTION BUTTONS */
+.admin-actions {
+  margin-top: 24px;
+  display: flex;
+  gap: 14px;
+}
+
+/* BUTTON STYLES */
+.btn.primary {
+  background: #2563eb;
+  color: #ffffff;
+}
+
+.btn.secondary {
+  background: #dc2626;
+  color: #ffffff;
+}
+/* Container for the image to position the close button inside */
+.image-large-wrap {
+  position: relative;
+  display: inline-block; /* shrink-wrap to image */
+  max-width: 86vw;
+  max-height: 82vh;
+}
+
+/* Ensure the image fits the viewport */
+.image-large {
+  display: block;
+  max-width: 86vw;
+  max-height: 82vh;
+  border-radius: 8px;
+  object-fit: contain;
+}
+
+/* Inside-the-image close button */
+.modal-close.inside {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 9999px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  backdrop-filter: saturate(120%) blur(2px);
+}
+.modal-close.inside:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* Optional: simplify modal chrome so the image stands out */
+.image-modal {
+  background: transparent;   /* previously #111827 */
+  padding: 0;                /* remove extra padding */
+  box-shadow: none;          /* optional */
+}

@@ -1,0 +1,161 @@
+/* src/index.css */
+:root {
+  --bg: #0b1020;
+  --card: #121a33;
+  --text: #e7ecff;
+  --muted: #9aa5c3;
+  --brand: #5b8cff;
+  --success: #2ecc71;
+  --danger: #ff5252;
+  --border: #202a4a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(1200px 600px at 10% 10%, #102046 0%, rgba(16, 32, 70, 0) 60%),
+    radial-gradient(1000px 600px at 90% 0%, #1a2c61 0%, rgba(26, 44, 97, 0) 60%),
+    radial-gradient(1000px 800px at 0% 100%, #1c2b55 0%, rgba(28, 43, 85, 0) 60%),
+    linear-gradient(160deg, #050914, #0b1020);
+  color: var(--text);
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  line-height: 1.5;
+}
+
+/* ===================================================
+   NexusMind AI - Digital Twin Telemetry Widget
+=================================================== */
+.digital-twin-banner {
+  background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #1e293b 100%);
+  border-radius: 16px;
+  padding: 22px 24px;
+  color: #ffffff;
+  margin-bottom: 24px;
+  box-shadow: 0 10px 25px -5px rgba(30, 27, 75, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(147, 197, 253, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dt-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.dt-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dt-sparkle {
+  font-size: 24px;
+  animation: dt-pulse 2s infinite ease-in-out;
+}
+
+@keyframes dt-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.15); opacity: 1; filter: drop-shadow(0 0 8px #60a5fa); }
+}
+
+.dt-heading {
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  color: #f8fafc;
+}
+
+.dt-subheading {
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+.dt-badges {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.dt-badge {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dt-badge.velocity-up {
+  background: rgba(34, 197, 94, 0.2);
+  color: #4ade80;
+  border: 1px solid rgba(34, 197, 94, 0.4);
+}
+
+.dt-badge.velocity-stable {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.dt-badge.velocity-down {
+  background: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+
+.dt-badge.risk-low {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.dt-badge.risk-high {
+  background: rgba(239, 68, 68, 0.25);
+  color: #fca5a5;
+  border: 1px solid rgba(239, 68, 68, 0.5);
+}
+
+.dt-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.dt-metric-card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 14px 16px;
+  backdrop-filter: blur(8px);
+}
+
+.dt-metric-label {
+  font-size: 12px;
+  color: #cbd5e1;
+  margin-bottom: 6px;
+}
+
+.dt-metric-val {
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.dt-metric-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-top: 4px;
+}

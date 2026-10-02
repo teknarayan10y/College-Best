@@ -1,0 +1,252 @@
+/* =========================================================
+   ADMIN SETTINGS – ULTRA ADVANCED ENTERPRISE UI
+   ========================================================= */
+
+/* ---------- Theme Tokens ---------- */
+:root {
+  --bg-main: #0b0f1a;
+  --bg-card: rgba(255, 255, 255, 0.04);
+  --bg-hover: rgba(255, 255, 255, 0.08);
+  --border: rgba(255, 255, 255, 0.14);
+
+  --text-main: #f5f7fa;
+  --text-muted: #9aa4b2;
+
+  --accent: #5b8cff;
+  --accent-glow: rgba(91, 140, 255, 0.45);
+
+  --success: #2ecc71;
+  --danger: #ff5c5c;
+
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  --radius-sm: 10px;
+
+  --transition: all 0.28s cubic-bezier(.4,0,.2,1);
+}
+
+/* ---------- Card ---------- */
+.card.wide {
+  background:
+    radial-gradient(120% 140% at 10% 0%, rgba(91,140,255,.12), transparent 60%),
+    var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow:
+    0 30px 90px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter: blur(16px);
+}
+
+/* ---------- Header ---------- */
+.au-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
+.au-header h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 600;
+  color: var(--text-main);
+  letter-spacing: 0.3px;
+}
+
+/* ---------- Tabs ---------- */
+.au-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.au-actions .btn {
+  position: relative;
+  background: transparent;
+  border: 1px solid var(--border);
+  padding: 8px 16px;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: var(--transition);
+  overflow: hidden;
+}
+
+.au-actions .btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(120deg, transparent, var(--accent-glow), transparent);
+  opacity: 0;
+  transition: var(--transition);
+}
+
+.au-actions .btn:hover {
+  color: var(--text-main);
+  background: var(--bg-hover);
+}
+
+.au-actions .btn:hover::after {
+  opacity: 0.3;
+}
+
+.au-actions .btn-primary {
+  color: #fff;
+  background: linear-gradient(135deg, #5b8cff, #7aa2ff);
+  border-color: transparent;
+  box-shadow: 0 10px 30px var(--accent-glow);
+}
+
+/* ---------- Alerts ---------- */
+.alert {
+  padding: 12px 16px;
+  border-radius: var(--radius-md);
+  background: rgba(46, 204, 113, 0.14);
+  border: 1px solid rgba(46, 204, 113, 0.35);
+  color: var(--text-main);
+}
+
+.alert.error {
+  background: rgba(255, 92, 92, 0.14);
+  border-color: rgba(255, 92, 92, 0.4);
+}
+
+/* ---------- Avatar ---------- */
+.avatar.large {
+  background: linear-gradient(135deg, #5b8cff, #8faeff);
+  box-shadow: 0 15px 40px rgba(91,140,255,.5);
+  color: #fff;
+  font-weight: 600;
+  user-select: none;
+}
+
+/* ---------- Buttons ---------- */
+.btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text-main);
+  padding: 10px 18px;
+  border-radius: var(--radius-md);
+  transition: var(--transition);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(0,0,0,.35);
+}
+
+.btn:active {
+  transform: scale(.98);
+}
+
+.btn:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ---------- Inputs ---------- */
+.fd-input {
+  background: rgba(0,0,0,.35);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
+  color: var(--text-main);
+  font-size: 14px;
+  transition: var(--transition);
+}
+
+.fd-input::placeholder {
+  color: var(--text-muted);
+}
+
+.fd-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(91,140,255,.18);
+  outline: none;
+}
+
+.full {
+  width: 100%;
+}
+
+/* ---------- Labels ---------- */
+label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* ---------- Tables ---------- */
+.table-wrapper {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.attendance-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: rgba(255,255,255,.04);
+}
+
+.attendance-table th,
+.attendance-table td {
+  padding: 14px;
+  font-size: 14px;
+  color: var(--text-main);
+}
+
+.attendance-table th {
+  background: rgba(255,255,255,.08);
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  font-size: 12px;
+}
+
+.attendance-table tr:hover td {
+  background: rgba(255,255,255,.05);
+}
+
+/* ---------- Empty State ---------- */
+.empty-hint {
+  color: var(--text-muted);
+  font-size: 14px;
+  padding: 16px;
+  text-align: center;
+}
+
+/* ---------- Animations ---------- */
+section {
+  animation: fadeSlide .35s ease;
+}
+
+@keyframes fadeSlide {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 768px) {
+  .au-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .au-actions {
+    width: 100%;
+  }
+
+  .au-actions .btn {
+    flex: 1;
+    text-align: center;
+  }
+}

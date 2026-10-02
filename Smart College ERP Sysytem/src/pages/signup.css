@@ -1,0 +1,182 @@
+/* Signup page styles - polished */
+.auth-wrap {
+  min-height: calc(100dvh - 64px);
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 520px;
+  padding: 24px 24px 18px 24px;
+  border-radius: 18px;
+  background:
+    radial-gradient(60% 80% at 10% 0%, rgba(91,140,255,0.08), transparent 60%),
+    rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--border);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.35);
+  backdrop-filter: blur(10px);
+}
+
+.auth-header h1 {
+  margin: 0 0 6px 0;
+  font-size: 28px;
+  letter-spacing: 0.2px;
+}
+.auth-header p {
+  margin: 0 0 16px 0;
+  color: var(--muted);
+}
+
+.auth-form {
+  display: grid;
+  gap: 14px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+.field > span {
+  font-size: 12px;
+  color: var(black);
+}
+
+.input-group { position: relative; }
+
+.input {
+  height: 44px;
+  padding: 0 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid var(--border);
+  color: var(--text);
+  outline: none;
+  transition: border-color .2s ease, box-shadow .2s ease, background .2s ease;
+}
+.input:hover { background: rgba(255,255,255,0.045); }
+.input:focus {
+  border-color: #2b3a63;
+  box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.25);
+}
+
+/* Toggle */
+.toggle {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 30px;
+  padding: 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.toggle:hover { color: var(--text); border-color: #2b3a63; }
+
+.form-error {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 82, 82, 0.1);
+  border: 1px solid rgba(255, 82, 82, 0.4);
+  color: #ffd2d2;
+  font-size: 13px;
+}
+.form-ok {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(46, 204, 113, 0.1);
+  border: 1px solid rgba(46, 204, 113, 0.4);
+  color: #d0ffe5;
+  font-size: 13px;
+}
+
+.btn.submit {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.auth-footer {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  color: var(--muted);
+  font-size: 14px;
+}
+.auth-footer .link {
+  color: var(--text);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--border);
+}
+.auth-footer .link:hover {
+  color: var(--brand);
+  border-color: var(--brand);
+}
+
+/* Dark-themed select (Role) */
+select.input {
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-color: #0b1020;      /* dark background for the control */
+  color: var(--text);             /* readable text */
+  border-color: #202a4a;
+  color-scheme: dark;             /* hint browsers to use dark popups */
+}
+
+/* Dropdown menu options background/text */
+select.input option {
+  background-color: #0b1020;      /* dark dropdown background */
+  color: var(--text);             /* keep text bright */
+}
+
+/* Optional: hover/focus polish */
+select.input:hover {
+  background-color: #0e152b;
+}
+select.input:focus {
+  border-color: #2b3a63;
+  box-shadow: 0 0 0 2px rgba(91, 140, 255, 0.25);
+}
+
+
+.input,
+input.input,
+select.input {
+  color-scheme: dark;
+  -webkit-text-fill-color: var(--text);
+  caret-color: var(--text);
+  background-color: #0b1020;
+}
+
+input.input:-webkit-autofill,
+input.input:-webkit-autofill:hover,
+input.input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text) !important;
+  box-shadow: 0 0 0 1000px #0b1020 inset !important;
+  -webkit-box-shadow: 0 0 0 1000px #0b1020 inset !important;
+  caret-color: var(--text);
+}
+
+.input:focus {
+  background-color: #0e152b;
+}
+.field > span {
+  font-size: 12px;
+  color: var(--muted); /* was: var(black); */
+}
+.input {
+  background: rgba(255,255,255,0.045);      /* was 0.035 */
+  border: 1px solid #2a3558;                /* a bit brighter than var(--border) */
+}
+
+/* Strong local override for auth pages */
+.auth-card .field input.input:focus,
+.auth-card .field .input:focus {
+  background-color: #0e152b !important;
+}

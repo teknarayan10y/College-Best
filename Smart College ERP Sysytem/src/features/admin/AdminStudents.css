@@ -1,0 +1,76 @@
+/* ===============================
+   ADMIN STUDENTS LIST (DARK)
+================================ */
+
+.admin-students {
+  background: #0b1220;
+  padding: 24px;
+  min-height: 100vh;
+  color: #e5e7eb;
+}
+
+.admin-students h1 {
+  font-size: 26px;
+  margin-bottom: 6px;
+  color: #f8fafc;
+}
+
+.admin-students p {
+  color: #94a3b8;
+  font-size: 14px;
+  margin-bottom: 20px;
+}
+
+/* TABLE */
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #111827;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.admin-table thead {
+  background: #1f2937;
+}
+
+.admin-table th {
+  padding: 14px;
+  text-align: left;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #9ca3af;
+}
+
+.admin-table td {
+  padding: 14px;
+  border-top: 1px solid #1f2937;
+  font-size: 14px;
+  color: #e5e7eb;
+}
+
+/* CLICKABLE NAME */
+.admin-table td.clickable {
+  color: #60a5fa;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.admin-table td.clickable:hover {
+  text-decoration: underline;
+}
+
+/* ROW HOVER */
+.admin-table tbody tr:hover {
+  background: #1f2937;
+  transition: background 0.2s ease;
+}
+
+/* BUTTON */
+.admin-table .btn {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+}

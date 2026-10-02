@@ -1,0 +1,399 @@
+/* =========================
+   ROOT & VARIABLES
+========================= */
+:root {
+  --bg: #0f172a;              /* slate-900 */
+  --panel: #111827;           /* gray-900 */
+  --card: #1f2933;            /* dark card */
+  --border: rgba(255,255,255,0.08);
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+ 
+  --primary: #6366f1;         /* indigo */
+  --secondary: #22c55e;       /* green */
+  --danger: #ef4444;
+  --warning: #f59e0b;
+}
+
+/* Keep Student header always on top while scrolling */
+.student-layout > .main > .page-header {
+  position: sticky;
+  top: 0;
+  z-index: 2001;              /* stays above modal overlay (1000) */
+  background: #111827;
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: saturate(120%) blur(2px);
+}
+
+/* =========================
+   PAGE HEADER
+========================= */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.page-header h1 {
+  font-size: 26px;
+  margin: 0;
+  color: var(--text);
+}
+
+.page-header .meta {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+/* =========================
+   TOOLBAR
+========================= */
+.assignments-toolbar {
+  display: flex;
+  gap: 12px;
+}
+
+.assignments-toolbar select {
+  background: var(--panel);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 8px 12px;
+  border-radius: 10px;
+  outline: none;
+}
+
+/* =========================
+   GRID & CARDS
+========================= */
+.grid.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 20px;
+}
+
+.card.assignment {
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.05),
+    rgba(255,255,255,0.02)
+  );
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.card.assignment:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 28px 80px rgba(0,0,0,0.6);
+}
+
+/* =========================
+   CARD HEADER
+========================= */
+.header-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.header-row h3 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--text);
+}
+
+.meta {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+/* =========================
+   BADGES
+========================= */
+.badges {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.badge.due {
+  background: rgba(99,102,241,0.15);
+  color: #c7d2fe;
+}
+
+.badge.overdue {
+  background: rgba(239,68,68,0.18);
+  color: #fecaca;
+}
+
+/* =========================
+   FILES
+========================= */
+.files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.file-chip {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text);
+  text-decoration: none;
+  transition: background .2s ease;
+}
+
+.file-chip:hover {
+  background: rgba(255,255,255,0.12);
+}
+
+/* =========================
+   ACTION BUTTONS
+========================= */
+.actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.btn {
+  border: none;
+  padding: 8px 16px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn.primary {
+  background: var(--primary);
+  color: white;
+}
+
+.btn.secondary {
+  background: var(--secondary);
+  color: #052e16;
+}
+
+.btn.ghost {
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--muted);
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================
+   EMPTY & ERROR
+========================= */
+.empty-state,
+.error {
+  text-align: center;
+  color: var(--muted);
+  padding: 40px 0;
+}
+
+/* =========================
+   SKELETON LOADER
+========================= */
+.skeleton {
+  height: 180px;
+  border-radius: 18px;
+  background: linear-gradient(
+    90deg,
+    rgba(255,255,255,0.05) 25%,
+    rgba(255,255,255,0.12) 37%,
+    rgba(255,255,255,0.05) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* =========================
+   MODAL
+========================= */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: grid;
+  place-items: center;
+  z-index: 1000;            /* under sticky header (2001) */
+}
+
+.modal {
+  background: var(--panel);
+  border-radius: 20px;
+  width: 100%;
+  max-width: 540px;
+  box-shadow: 0 40px 120px rgba(0,0,0,0.7);
+  animation: pop .25s ease;
+}
+
+@keyframes pop {
+  from { transform: scale(0.92); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.modal-header,
+.modal-footer {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.modal-footer {
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+/* =========================
+   FORM FIELDS
+========================= */
+.field label {
+  font-size: 13px;
+  color: var(--muted);
+  display: block;
+  margin-bottom: 6px;
+}
+
+textarea {
+  width: 100%;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px;
+  resize: vertical;
+}
+
+/* =========================
+   DROPZONE
+========================= */
+.dropzone {
+  border: 2px dashed var(--border);
+  border-radius: 16px;
+  padding: 20px;
+  text-align: center;
+  cursor: pointer;
+  transition: border .2s ease, background .2s ease;
+}
+
+.dropzone:hover {
+  border-color: var(--primary);
+  background: rgba(99,102,241,0.08);
+}
+
+.dropzone strong {
+  display: block;
+  color: var(--text);
+}
+
+.dropzone small {
+  color: var(--muted);
+}
+
+.input-hidden {
+  display: none;
+}
+
+/* =========================
+   SELECTED FILES
+========================= */
+.file-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.file-pill {
+  background: rgba(255,255,255,0.07);
+  border: 1px solid var(--border);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.file-pill .remove {
+  background: transparent;
+  border: none;
+  color: var(--danger);
+  cursor: pointer;
+}
+
+/* Place close button inside header, top-right */
+.modal-header {
+  position: relative;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-header .close-btn,
+.modal-card .close-btn {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid var(--border);
+  color: var(--text);
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.modal-header .close-btn:hover,
+.modal-card .close-btn:hover {
+  background: rgba(239,68,68,0.2);
+  color: #fecaca;
+  transform: scale(1.05);
+}
+
+/* Make dropzone text black with a light background for contrast */
+
+.dropzone strong {
+  color: #000000;       /* black for the main line */
+}
+
+
+

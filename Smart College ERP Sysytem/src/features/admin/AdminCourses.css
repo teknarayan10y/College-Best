@@ -1,0 +1,148 @@
+/* src/features/admin/AdminCourses.css */
+
+:root {
+  --panel: #0f172a;
+  --border: #1f2937;
+  --muted: #94a3b8;
+  --text: #e5e7eb;
+  --ring: 59 130 246;
+  --primary: #3b82f6;
+  --success: #10b981;
+  --danger: #ef4444;
+}
+
+/* Page layout */
+.courses-page .page-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.courses-page .page-title {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.courses-page .page-title h1 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--text);
+}
+.courses-page .page-title p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* Card wrapper for table */
+.courses-card {
+  background: linear-gradient(180deg, rgba(17,24,39,0.8), rgba(15,23,42,0.9));
+  border: 1px solid rgba(31,41,55,0.9);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow:
+    0 10px 30px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.02);
+}
+
+/* Table */
+.admin-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #0c1426;
+}
+
+.admin-table thead th {
+  text-align: left;
+  font-weight: 600;
+  color: var(--muted);
+  background: #0e1a2f;
+  border-bottom: 1px solid var(--border);
+  padding: 12px;
+}
+
+.admin-table tbody td {
+  padding: 12px;
+  border-bottom: 1px solid rgba(31,41,55,0.6);
+}
+
+.admin-table tbody tr:nth-child(odd) {
+  background: rgba(255,255,255,0.01);
+}
+
+.admin-table tbody tr:hover {
+  background: #0f1a2e;
+}
+
+/* Status badge */
+.badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  line-height: 1;
+}
+.badge.success {
+  color: #bbf7d0;
+  background: rgba(16,185,129,0.12);
+  border: 1px solid rgba(16,185,129,0.35);
+}
+.badge.muted {
+  color: #fecaca;
+  background: rgba(239,68,68,0.12);
+  border: 1px solid rgba(239,68,68,0.35);
+}
+
+/* Header Actions */
+.courses-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+/* Uniform button sizing in header */
+.courses-actions .btn {
+  height: 36px;             /* same height as the search input */
+  min-width: 120px;         /* makes Search and Create equal width */
+  padding: 0 14px;          /* vertical centering + consistent horizontal padding */
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.courses-actions .btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+/* Responsive: stack table on small screens */
+@media (max-width: 720px) {
+  .admin-table thead {
+    display: none;
+  }
+  .admin-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px 12px;
+    padding: 10px 8px;
+  }
+  .admin-table tbody td {
+    border: none;
+    padding: 4px 0;
+  }
+  .admin-table tbody td::before {
+    content: attr(data-col);
+    color: var(--muted);
+    margin-right: 8px;
+    display: inline-block;
+    min-width: 110px;
+    font-size: 12px;
+  }
+}
