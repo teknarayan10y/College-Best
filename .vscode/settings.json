@@ -1,0 +1,16 @@
+{
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/dist": true,
+    "**/.git": true,
+    "**/build": true
+  },
+  "files.exclude": {
+    "**/.git": true,
+    "**/.DS_Store": true
+  },
+  "files.watcherExclude": {
+    "**/node_modules/**": true,
+    "**/dist/**": true
+  }
+}
