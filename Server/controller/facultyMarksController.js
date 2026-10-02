@@ -1,6 +1,7 @@
 const Marks = require('../models/Marks');
 const Course = require('../models/Course');
 const mongoose = require('mongoose');
+const { createNotification } = require('./notificationController');
 
 // Get marks for a course
 async function facultyGetMarks(req, res) {
@@ -59,10 +60,16 @@ async function facultyGetMarks(req, res) {
     const formattedMarks = {};
     marks.forEach(mark => {
       if (mark.studentId) {
-        formattedMarks[mark.studentId._id] = {
-          'Semester Exam': mark.semesterExam || 0,
-          'Assignment': mark.assignment || 0,
-          'Practical': mark.practical || 0
+        const sId = mark.studentId._id ? mark.studentId._id.toString() : mark.studentId.toString();
+        formattedMarks[sId] = {
+          'Semester Exam': mark.semesterExam ?? 0,
+          'Assignment': mark.assignment ?? 0,
+          'Practical': mark.practical ?? 0,
+          semesterExam: mark.semesterExam ?? 0,
+          assignment: mark.assignment ?? 0,
+          practical: mark.practical ?? 0,
+          total: mark.total ?? 0,
+          grade: mark.grade || 'F'
         };
       }
     });
@@ -200,6 +207,24 @@ async function facultySaveMarks(req, res) {
         
         results.push(result);
         console.log('Save result for student', studentId, ':', result);
+
+        // Automatically notify student in real-time about new / updated marks
+        createNotification({
+          recipientId: studentId,
+          senderId: facultyId,
+          type: 'MARKS_UPDATED',
+          title: `Marks Published: ${course.name || 'Course'}`,
+          message: `Your marks for ${course.name || 'Course'} have been recorded/updated. Total: ${marksDoc.total}/100 (Grade: ${marksDoc.grade}). Check your academic portal to verify.`,
+          courseId: course._id,
+          metadata: {
+            courseName: course.name,
+            semesterExam: marksDoc.semesterExam,
+            assignment: marksDoc.assignment,
+            practical: marksDoc.practical,
+            total: marksDoc.total,
+            grade: marksDoc.grade
+          }
+        }).catch(err => console.error('[Notification Trigger Error]', err));
       } catch (saveError) {
         console.error('Save error for student', studentId, ':', saveError);
         results.push({ error: saveError.message, studentId: markData.studentId });

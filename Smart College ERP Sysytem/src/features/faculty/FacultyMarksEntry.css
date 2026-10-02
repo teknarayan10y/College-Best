@@ -2034,7 +2034,142 @@ tr.voice-matched-row {
   animation: rowMatchPulse 1s ease-in-out infinite alternate;
 }
 
+tr.voice-matched-row input.mark-input {
+  background: #064e3b !important;
+  color: #34d399 !important;
+  border: 2px solid #10b981 !important;
+  font-weight: 800 !important;
+  box-shadow: 0 0 12px rgba(16, 185, 129, 0.8) !important;
+}
+
+/* Active Focused Row (Current Voice Target) */
+tr.active-focus-row {
+  background: rgba(59, 130, 246, 0.12) !important;
+  border-left: 4px solid #3b82f6 !important;
+}
+
+/* Updated Column Cell Glow */
+td.voice-cell-updated {
+  position: relative;
+}
+
+td.voice-cell-updated input.mark-input {
+  background: #064e3b !important;
+  color: #a7f3d0 !important;
+  border: 2px solid #34d399 !important;
+  font-weight: 900 !important;
+  box-shadow: 0 0 18px rgba(52, 211, 153, 0.9) !important;
+  transform: scale(1.12);
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  animation: cellGlowPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes cellGlowPulse {
+  from {
+    box-shadow: 0 0 10px rgba(52, 211, 153, 0.6);
+  }
+  to {
+    box-shadow: 0 0 22px rgba(52, 211, 153, 1);
+  }
+}
+
 @keyframes rowMatchPulse {
   from { background: rgba(16, 185, 129, 0.15); }
   to { background: rgba(16, 185, 129, 0.32); }
 }
+
+/* Fast Roll Number Mark Entry Card */
+.quick-roll-entry-card {
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95), rgba(15, 23, 42, 0.98));
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.quick-roll-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.quick-roll-badge {
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  color: #ffffff;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 6px;
+  letter-spacing: 0.5px;
+}
+
+.quick-roll-hint {
+  color: #94a3b8;
+  font-size: 0.82rem;
+}
+
+.quick-roll-form {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.quick-roll-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 150px;
+}
+
+.quick-roll-input-wrap label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #cbd5e1;
+  letter-spacing: 0.5px;
+}
+
+.quick-roll-input-wrap input,
+.quick-roll-input-wrap select {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 8px 12px;
+  color: #ffffff;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.quick-roll-input-wrap input:focus,
+.quick-roll-input-wrap select:focus {
+  outline: none;
+  border-color: #6366f1;
+  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.25);
+}
+
+.quick-roll-btn {
+  padding: 9px 18px !important;
+  font-size: 0.88rem !important;
+  font-weight: 700 !important;
+  background: linear-gradient(135deg, #10b981, #059669) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  color: #ffffff !important;
+  cursor: pointer !important;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease !important;
+}
+
+.quick-roll-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4);
+}
+

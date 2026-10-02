@@ -9,10 +9,12 @@ function getCourseId(c) {
 function displayName(p) {
   const u = p?.user || {};
   const prof = p?.profile || {};
+  const directName = p?.name || u?.name || '';
   const first = prof.firstName || u.firstName || '';
   const last = prof.lastName || u.lastName || '';
-  const idLike = prof.registerNumber || prof.rollNo || '';
-  return (first + ' ' + last).trim() || idLike || u.email || 'Unknown';
+  const fullName = `${first} ${last}`.trim();
+  const idLike = prof.registerNumber || prof.rollNo || p?.rollNo || '';
+  return fullName || directName || idLike || u.email || 'Student';
 }
 
 function getGradeClassName(grade) {
@@ -45,29 +47,120 @@ function validateMarksData(marksBySubject, selectedCourse) {
 }
 
 // --------------------------------------------------------------------------
-// Natural Language Speech-to-Text Marks Parser
 // --------------------------------------------------------------------------
-function parseVoiceMarksCommand(transcript, studentsList) {
+// Helper: Convert Spoken English Number Words to Digits (e.g. "fifty" -> 50)
+// --------------------------------------------------------------------------
+function convertWordsToNumbers(text) {
+  if (!text) return '';
+  const wordMap = {
+    'zero': 0, 'one': 1, 'two': 2, 'three': 3, 'four': 4,
+    'five': 5, 'six': 6, 'seven': 7, 'eight': 8, 'nine': 9,
+    'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13,
+    'fourteen': 14, 'fifteen': 15, 'sixteen': 16, 'seventeen': 17,
+    'eighteen': 18, 'nineteen': 19, 'twenty': 20, 'thirty': 30,
+    'forty': 40, 'fifty': 50, 'sixty': 60, 'seventy': 70,
+    'eighty': 80, 'ninety': 90, 'hundred': 100
+  };
+
+  let res = text.toLowerCase();
+
+  // Handle compound tens + units: e.g. "fifty four" -> "54", "forty five" -> "45"
+  const tens = ['twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  const units = ['one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine'];
+
+  for (const t of tens) {
+    for (const u of units) {
+      const reg = new RegExp(`\\b${t}\\s+${u}\\b`, 'gi');
+      res = res.replace(reg, String(wordMap[t] + wordMap[u]));
+    }
+  }
+
+  // Handle single words: "fifty" -> "50"
+  Object.keys(wordMap).forEach(w => {
+    const reg = new RegExp(`\\b${w}\\b`, 'gi');
+    res = res.replace(reg, String(wordMap[w]));
+  });
+
+  return res;
+}
+
+// --------------------------------------------------------------------------
+// Helper: Clean & Normalize Alphanumeric Roll Numbers (e.g. "23IT01", "23 it 01" -> "23it01")
+// --------------------------------------------------------------------------
+function normalizeRollNo(str) {
+  if (!str) return '';
+  return String(str).toLowerCase().replace(/[\s\-_#]/g, '');
+}
+
+// Helper: Build flexible regex for roll numbers like 23IT01 (matches "23it01", "23 it 01", "23 it 1")
+function buildRollRegex(roll) {
+  if (!roll) return null;
+  const clean = normalizeRollNo(roll);
+  // Match groups of digits and letters: e.g. "23", "it", "01"
+  const tokens = clean.match(/([0-9]+|[a-zA-Z]+)/g);
+  if (!tokens || tokens.length === 0) return null;
+
+  const patternParts = tokens.map((tok, idx) => {
+    // For trailing numbers, allow optional leading zeros (e.g. "01" vs "1")
+    if (idx === tokens.length - 1 && /^[0-9]+$/.test(tok)) {
+      const stripped = tok.replace(/^0+/, '');
+      return stripped ? `0*${stripped}` : tok;
+    }
+    return tok;
+  });
+
+  const pat = patternParts.join('\\s*');
+  return new RegExp(`(?:roll\\s*(?:no|number)?|number|no|reg|registration|student)?\\s*#?\\s*\\b(${pat})\\b`, 'i');
+}
+
+// --------------------------------------------------------------------------
+// Natural Language Speech-to-Text Marks Parser
+// Supports: "23IT01 mark 50", "roll 23 it 01 mark 50", "mask 50", "vinit mask 50", etc.
+// --------------------------------------------------------------------------
+function parseVoiceMarksCommand(transcript, studentsList, currentSubject = 'All Subjects', activeStudentId = null, activeExamType = 'Semester Exam') {
   if (!transcript || !studentsList || !studentsList.length) return null;
 
-  const text = transcript.toLowerCase().trim();
+  let text = transcript.toLowerCase().trim();
+
+  // 1. Convert word-numbers ("fifty" -> "50", "forty five" -> "45")
+  text = convertWordsToNumbers(text);
+
+  // 2. Normalize common verbal phrases: "tell him to mask", "tell to mask", "ask him to mask", etc.
+  text = text.replace(/\b(?:tell|ask)\s+(?:him|her|them)?\s*(?:to)?\s*(?:put|give|set|enter|show)?\s*(?:mask|mark|marks)\b/gi, 'mark');
+  text = text.replace(/\b(?:tell|ask)\s+(?:him|her|them)?\s*(?:to)?\b/gi, '');
+  text = text.replace(/\b(?:give|put|set|enter|show)\s+(?:mask|mark|marks)\b/gi, 'mark');
+
+  // 3. Normalize speech variations: "mask", "maske", "marx", "max", "marc", "mork", "marka" -> "mark"
+  text = text.replace(/\b(?:mask|maske|marx|max|marc|mork|marka)\b/gi, 'mark');
 
   // Find matching student
   let matchedStudent = null;
   let highestScore = 0;
 
-  for (const s of studentsList) {
+  for (let i = 0; i < studentsList.length; i++) {
+    const s = studentsList[i];
     const prof = s?.profile || {};
     const u = s?.user || {};
-    const first = (prof.firstName || u.firstName || '').toLowerCase().trim();
-    const last = (prof.lastName || u.lastName || '').toLowerCase().trim();
-    const full = `${first} ${last}`.trim();
-    const roll = (prof.rollNo || prof.registerNumber || '').toLowerCase().trim();
+    const directName = (s?.name || u?.name || '').toLowerCase().trim();
+    const first = (prof.firstName || u.firstName || directName.split(' ')[0] || '').toLowerCase().trim();
+    const last = (prof.lastName || u.lastName || (directName.split(' ').length > 1 ? directName.split(' ').slice(1).join(' ') : '')).toLowerCase().trim();
+    const full = (prof.firstName || prof.lastName) ? `${first} ${last}`.trim() : directName;
+    const roll = (prof.rollNo || prof.registerNumber || s?.rollNo || s?.registerNumber || u?.rollNo || u?.registerNumber || '').toLowerCase().trim();
 
-    // Check roll match
-    if (roll && (text.includes(`roll ${roll}`) || text.includes(`number ${roll}`) || text.includes(`no ${roll}`) || text.includes(roll))) {
-      matchedStudent = s;
-      break;
+    // Check exact & flexible alphanumeric roll match: e.g. "23IT01", "23 it 01", "roll 23 it 01"
+    if (roll) {
+      const rollRegex = buildRollRegex(roll);
+      if (rollRegex && rollRegex.test(text)) {
+        matchedStudent = s;
+        break;
+      }
+      // Also check normalized continuous string
+      const cleanT = normalizeRollNo(text);
+      const cleanR = normalizeRollNo(roll);
+      if (cleanR && cleanT.includes(cleanR)) {
+        matchedStudent = s;
+        break;
+      }
     }
 
     // Check full name match
@@ -90,43 +183,123 @@ function parseVoiceMarksCommand(transcript, studentsList) {
     }
   }
 
+  // Ordinal / index match: "student 1", "row 1", "first student", etc.
   if (!matchedStudent) {
-    return { error: 'Student not recognized in command. Please speak the student name or roll number.' };
+    if (text.includes('first student') || text.includes('student 1') || text.includes('row 1')) {
+      matchedStudent = studentsList[0];
+    } else if (text.includes('second student') || text.includes('student 2') || text.includes('row 2')) {
+      matchedStudent = studentsList[1] || studentsList[0];
+    } else if (text.includes('third student') || text.includes('student 3') || text.includes('row 3')) {
+      matchedStudent = studentsList[2] || studentsList[0];
+    }
+  }
+
+  // Contextual fallback: If student wasn't named in speech, use the currently active/selected student row
+  if (!matchedStudent && activeStudentId) {
+    matchedStudent = studentsList.find(s => {
+      const sid = s?._id || s?.userId || s?.user?._id || s?.user?.id || s?.studentId;
+      return sid === activeStudentId;
+    });
+  }
+
+  // Default to first student in list if still not determined
+  if (!matchedStudent && studentsList.length > 0) {
+    matchedStudent = studentsList[0];
+  }
+
+  if (!matchedStudent) {
+    return { error: 'No student selected or recognized. Please select a student or say student name.' };
   }
 
   const marks = {};
+  let targetExamType = activeExamType || 'Semester Exam';
 
   // Semester Exam: "semester [exam] X", "sem X", "final X", "theory X"
-  const semMatch = text.match(/(?:semester(?:\s+exam)?|sem|final|theory|exam)\s+(?:is\s+)?(?:marks?\s+)?(\d{1,2})/i);
+  const semMatch = text.match(/(?:semester(?:\s+exam)?|sem|final|theory|exam)\s+(?:is\s+)?(?:mark|marks)?\s*(\d{1,2})/i);
   if (semMatch) {
     marks['Semester Exam'] = Math.min(60, Math.max(0, parseInt(semMatch[1], 10)));
+    targetExamType = 'Semester Exam';
   }
 
   // Assignment: "assignment X", "assign X", "internal X", "test X"
-  const assignMatch = text.match(/(?:assignment|assign|internals?|test)\s+(?:is\s+)?(?:marks?\s+)?(\d{1,2})/i);
+  const assignMatch = text.match(/(?:assignment|assign|internals?|test)\s+(?:is\s+)?(?:mark|marks)?\s*(\d{1,2})/i);
   if (assignMatch) {
     marks['Assignment'] = Math.min(20, Math.max(0, parseInt(assignMatch[1], 10)));
+    targetExamType = 'Assignment';
   }
 
   // Practical: "practical X", "prac X", "lab X", "viva X"
-  const pracMatch = text.match(/(?:practical|prac|lab|viva)\s+(?:is\s+)?(?:marks?\s+)?(\d{1,2})/i);
+  const pracMatch = text.match(/(?:practical|prac|lab|viva)\s+(?:is\s+)?(?:mark|marks)?\s*(\d{1,2})/i);
   if (pracMatch) {
     marks['Practical'] = Math.min(20, Math.max(0, parseInt(pracMatch[1], 10)));
+    targetExamType = 'Practical';
   }
 
-  // Fallback: If no component keywords matched, but numbers are given: e.g. "Vinit Kumar 54 18 16"
+  // Direct "mark X" / "mask X" / "score X" match (e.g. "mark 50", "mask 50", "Vinit mask 45")
+  const directMarkMatch = text.match(/(?:mark|marks|score|put|give|grade)\s+(?:is\s+)?(\d{1,2})/i);
+  if (directMarkMatch && Object.keys(marks).length === 0) {
+    const val = parseInt(directMarkMatch[1], 10);
+    // Route to appropriate column
+    if (currentSubject === 'Assignment' || targetExamType === 'Assignment') {
+      marks['Assignment'] = Math.min(20, Math.max(0, val));
+      targetExamType = 'Assignment';
+    } else if (currentSubject === 'Practical' || targetExamType === 'Practical') {
+      marks['Practical'] = Math.min(20, Math.max(0, val));
+      targetExamType = 'Practical';
+    } else {
+      if (val > 20) {
+        marks['Semester Exam'] = Math.min(60, Math.max(0, val));
+        targetExamType = 'Semester Exam';
+      } else if (targetExamType && targetExamType !== 'All Subjects') {
+        marks[targetExamType] = Math.min(targetExamType === 'Semester Exam' ? 60 : 20, Math.max(0, val));
+      } else {
+        marks['Semester Exam'] = Math.min(60, Math.max(0, val));
+        targetExamType = 'Semester Exam';
+      }
+    }
+  }
+
+  // Fallback: If no keywords matched, but numbers are given (e.g. "Vinit Kumar 54 18 16" or "50")
   if (Object.keys(marks).length === 0) {
-    const numbers = text.match(/\b\d{1,2}\b/g);
+    const prof = matchedStudent?.profile || {};
+    const u = matchedStudent?.user || {};
+    const roll = (prof.rollNo || prof.registerNumber || matchedStudent?.rollNo || matchedStudent?.registerNumber || u?.rollNo || u?.registerNumber || '').trim();
+    let cleanText = text;
+
+    // Strip alphanumeric roll patterns (e.g. "23 it 01", "23it01") so "23" and "01" are NOT mistaken for marks!
+    if (roll) {
+      const rollRegex = buildRollRegex(roll);
+      if (rollRegex) {
+        cleanText = cleanText.replace(rollRegex, ' ');
+      }
+      const rawClean = normalizeRollNo(roll);
+      if (/^\d+$/.test(rawClean)) {
+        cleanText = cleanText.replace(new RegExp(`\\b${rawClean}\\b`, 'gi'), ' ');
+      }
+    }
+    const numbers = cleanText.match(/\b\d{1,2}\b/g);
     if (numbers && numbers.length >= 1) {
       if (numbers.length >= 3) {
         marks['Semester Exam'] = Math.min(60, Math.max(0, parseInt(numbers[0], 10)));
         marks['Assignment'] = Math.min(20, Math.max(0, parseInt(numbers[1], 10)));
         marks['Practical'] = Math.min(20, Math.max(0, parseInt(numbers[2], 10)));
+        targetExamType = 'Semester Exam';
       } else if (numbers.length === 2) {
         marks['Semester Exam'] = Math.min(60, Math.max(0, parseInt(numbers[0], 10)));
         marks['Assignment'] = Math.min(20, Math.max(0, parseInt(numbers[1], 10)));
+        targetExamType = 'Semester Exam';
       } else if (numbers.length === 1) {
-        marks['Semester Exam'] = Math.min(60, Math.max(0, parseInt(numbers[0], 10)));
+        const val = parseInt(numbers[0], 10);
+        if (currentSubject === 'Assignment' || targetExamType === 'Assignment') {
+          marks['Assignment'] = Math.min(20, Math.max(0, val));
+          targetExamType = 'Assignment';
+        } else if (currentSubject === 'Practical' || targetExamType === 'Practical') {
+          marks['Practical'] = Math.min(20, Math.max(0, val));
+          targetExamType = 'Practical';
+        } else {
+          marks['Semester Exam'] = Math.min(60, Math.max(0, val));
+          targetExamType = 'Semester Exam';
+        }
       }
     }
   }
@@ -134,18 +307,25 @@ function parseVoiceMarksCommand(transcript, studentsList) {
   if (Object.keys(marks).length === 0) {
     return {
       student: matchedStudent,
-      error: `Identified student ${displayName(matchedStudent)}, but could not detect marks (e.g. "semester 54 assignment 18 practical 16")`
+      error: `Identified student ${displayName(matchedStudent)}, but could not detect mark (e.g. say "mask 50" or "mark 45")`
     };
   }
 
   return {
     student: matchedStudent,
-    marks
+    marks,
+    targetExamType
   };
 }
 
 export default function FacultyMarksEntry() {
-  const [selectedCourse, setSelectedCourse] = useState('');
+  const [selectedCourse, setSelectedCourse] = useState(() => {
+    try {
+      return localStorage.getItem('faculty_selected_course') || '';
+    } catch {
+      return '';
+    }
+  });
   const [selectedExamType, setSelectedExamType] = useState('All Subjects');
   const [students, setStudents] = useState([]);
   const [courses, setCourses] = useState([]);
@@ -169,16 +349,172 @@ export default function FacultyMarksEntry() {
   const [voiceFeedbackMsg, setVoiceFeedbackMsg] = useState(null);
   const [voiceHistory, setVoiceHistory] = useState([]);
   const [highlightedStudentId, setHighlightedStudentId] = useState(null);
+  const [highlightedExamType, setHighlightedExamType] = useState(null);
+  const [activeStudentId, setActiveStudentId] = useState(null);
+  const [activeExamType, setActiveExamType] = useState('Semester Exam');
   const [voiceAudioFeedback, setVoiceAudioFeedback] = useState(true);
   const [testCommandInput, setTestCommandInput] = useState('');
 
   const recognitionRef = useRef(null);
+  const singleRecognitionRef = useRef(null);
   const highlightTimerRef = useRef(null);
   const isListeningRef = useRef(false);
+  const isIntentionalAbortRef = useRef(false);
+
+  function stopAllSpeechRecognition() {
+    isIntentionalAbortRef.current = true;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.abort();
+      } catch (e) { }
+      recognitionRef.current = null;
+    }
+    if (singleRecognitionRef.current) {
+      try {
+        singleRecognitionRef.current.abort();
+      } catch (e) { }
+      singleRecognitionRef.current = null;
+    }
+    setIsListening(false);
+    setIsSubmittingVoice(false);
+    isListeningRef.current = false;
+    setVoiceFeedbackMsg(null);
+    setTimeout(() => {
+      isIntentionalAbortRef.current = false;
+    }, 150);
+  }
 
   useEffect(() => {
     isListeningRef.current = isListening;
   }, [isListening]);
+
+  // Quick Roll Number Mark Entry States
+  const [quickRollNo, setQuickRollNo] = useState('');
+  const [quickMark, setQuickMark] = useState('');
+  const [quickExamType, setQuickExamType] = useState('Semester Exam');
+  const quickRollInputRef = useRef(null);
+
+  // Keep first student active by default so verbal commands like "mask 50" work immediately
+  useEffect(() => {
+    if (students.length > 0 && !activeStudentId) {
+      const firstId = students[0]?._id || students[0]?.userId || students[0]?.user?._id || students[0]?.user?.id || students[0]?.studentId;
+      if (firstId) setActiveStudentId(firstId);
+    }
+  }, [students, activeStudentId]);
+
+  async function handleQuickRollSubmit(e) {
+    if (e) e.preventDefault();
+    if (!quickRollNo || quickRollNo.trim() === '') {
+      setError('Please enter a student roll number');
+      return;
+    }
+    if (quickMark === '' || isNaN(quickMark)) {
+      setError('Please enter a valid mark');
+      return;
+    }
+
+    const termClean = normalizeRollNo(quickRollNo);
+    // Locate student by alphanumeric roll number, register number, or student ID
+    const targetStudent = students.find(s => {
+      const prof = s?.profile || {};
+      const u = s?.user || {};
+      const r1 = normalizeRollNo(prof.rollNo);
+      const r2 = normalizeRollNo(prof.registerNumber);
+      const r3 = normalizeRollNo(s?.rollNo);
+      const r4 = normalizeRollNo(s?.registerNumber);
+      const r5 = normalizeRollNo(u?.rollNo);
+      const r6 = normalizeRollNo(u?.registerNumber);
+      return (
+        (r1 && r1 === termClean) ||
+        (r2 && r2 === termClean) ||
+        (r3 && r3 === termClean) ||
+        (r4 && r4 === termClean) ||
+        (r5 && r5 === termClean) ||
+        (r6 && r6 === termClean)
+      );
+    });
+
+    if (!targetStudent) {
+      setError(`No student found with Roll/Reg No: "${quickRollNo}". Please check the number.`);
+      speakConfirmation("Student roll number not found.");
+      return;
+    }
+
+    const maxM = markDistribution[quickExamType]?.maxMarks || 60;
+    const num = Math.min(maxM, Math.max(0, Number(quickMark)));
+    const studentId = targetStudent?._id || targetStudent?.userId || targetStudent?.user?._id || targetStudent?.user?.id || targetStudent?.studentId;
+    const sName = displayName(targetStudent);
+
+    // 1. Update marks state immediately
+    const nextSubjectMarks = {
+      ...marksBySubject,
+      [quickExamType]: {
+        ...(marksBySubject[quickExamType] || {}),
+        [studentId]: num
+      }
+    };
+    setMarksBySubject(nextSubjectMarks);
+
+    // 2. Highlight student row and column
+    setHighlightedStudentId(studentId);
+    setHighlightedExamType(quickExamType);
+    setActiveStudentId(studentId);
+    setActiveExamType(quickExamType);
+
+    setTimeout(() => {
+      const row = document.getElementById(`student-row-${studentId}`);
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      const inp = document.getElementById(`mark-input-${studentId}-${quickExamType.replace(/\s+/g, '-')}`);
+      if (inp) {
+        inp.focus();
+        inp.select();
+      }
+    }, 60);
+
+    setSuccess(`✅ Roll ${quickRollNo} (${sName}): ${quickExamType} = ${num} saved!`);
+    speakConfirmation(`Mark ${num} entered for Roll ${quickRollNo}`);
+
+    // Auto-save to database
+    try {
+      const validStudents = students.filter(s => {
+        const sid = s?._id || s?.userId || s?.user?._id || s?.user?.id || s?.studentId;
+        return sid && typeof sid === 'string' && sid.length === 24 && /^[0-9a-fA-F]{24}$/.test(sid);
+      });
+
+      if (validStudents.length > 0 && selectedCourse) {
+        const payload = {
+          courseId: selectedCourse,
+          marks: validStudents.map(s => {
+            const sid = s?._id || s?.userId || s?.user?._id || s?.user?.id || s?.studentId;
+            const sem = sid === studentId && quickExamType === 'Semester Exam' ? num : (nextSubjectMarks['Semester Exam']?.[sid] || 0);
+            const assign = sid === studentId && quickExamType === 'Assignment' ? num : (nextSubjectMarks['Assignment']?.[sid] || 0);
+            const prac = sid === studentId && quickExamType === 'Practical' ? num : (nextSubjectMarks['Practical']?.[sid] || 0);
+            const total = sem + assign + prac;
+            return {
+              studentId: sid,
+              semesterExam: sem,
+              assignment: assign,
+              practical: prac,
+              total,
+              grade: calculateGrade(total)
+            };
+          })
+        };
+        await api.facultyMarksSave(payload);
+      }
+    } catch (saveErr) {
+      console.warn('Auto save error:', saveErr);
+    }
+
+    // Reset inputs and focus back for the next student paper
+    setQuickRollNo('');
+    setQuickMark('');
+    if (quickRollInputRef.current) {
+      quickRollInputRef.current.focus();
+    }
+  }
 
   function speakConfirmation(text) {
     if (!voiceAudioFeedback) return;
@@ -197,15 +533,15 @@ export default function FacultyMarksEntry() {
 
   function processVoiceCommand(transcriptText) {
     if (!transcriptText || !transcriptText.trim()) return;
-    const result = parseVoiceMarksCommand(transcriptText, students);
+    const result = parseVoiceMarksCommand(transcriptText, students, selectedExamType, activeStudentId, activeExamType);
     if (!result || result.error) {
-      const msg = result?.error || "Could not parse command. Try: '[Student Name] semester 50 assignment 18 practical 16'";
+      const msg = result?.error || "Could not parse command. Try: 'mask 50', 'vinit mask 50', or 'roll 101 mask 45'";
       setVoiceFeedbackMsg({ type: 'warning', text: msg });
       speakConfirmation("Could not recognize marks.");
       return;
     }
 
-    const { student, marks } = result;
+    const { student, marks, targetExamType } = result;
     const studentId = student?._id || student?.userId || student?.user?._id || student?.user?.id || student?.studentId;
     const sName = displayName(student);
 
@@ -221,13 +557,31 @@ export default function FacultyMarksEntry() {
     });
 
     setHighlightedStudentId(studentId);
+    if (targetExamType) setHighlightedExamType(targetExamType);
+    setActiveStudentId(studentId);
+
+    setTimeout(() => {
+      const row = document.getElementById(`student-row-${studentId}`);
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      if (targetExamType) {
+        const inp = document.getElementById(`mark-input-${studentId}-${targetExamType.replace(/\s+/g, '-')}`);
+        if (inp) {
+          inp.focus();
+          inp.select();
+        }
+      }
+    }, 60);
+
     if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
     highlightTimerRef.current = setTimeout(() => {
       setHighlightedStudentId(null);
-    }, 4500);
+      setHighlightedExamType(null);
+    }, 5000);
 
     const summaryStr = Object.entries(marks).map(([k, v]) => `${k}: ${v}`).join(', ');
-    setVoiceFeedbackMsg({ type: 'success', text: `Success: ${sName} → ${summaryStr}` });
+    setVoiceFeedbackMsg({ type: 'success', text: `🎯 Column Updated for ${sName}: ${summaryStr}` });
 
     setVoiceHistory(prev => [
       {
@@ -239,7 +593,7 @@ export default function FacultyMarksEntry() {
       ...prev.slice(0, 7)
     ]);
 
-    speakConfirmation(`Marks updated for ${sName}`);
+    speakConfirmation(`Mark entered for ${sName}`);
   }
 
   const [isSubmittingVoice, setIsSubmittingVoice] = useState(false);
@@ -249,18 +603,18 @@ export default function FacultyMarksEntry() {
   // --------------------------------------------------------------------------
   async function applyAndSubmitMarks(cmdText) {
     if (!cmdText || !cmdText.trim()) return;
-    const result = parseVoiceMarksCommand(cmdText, students);
+    const result = parseVoiceMarksCommand(cmdText, students, selectedExamType, activeStudentId, activeExamType);
     if (!result || result.error) {
       setVoiceFeedbackMsg({ type: 'warning', text: result?.error || 'Could not parse marks command.' });
-      speakConfirmation("Could not recognize marks or student.");
+      speakConfirmation("Could not recognize mark or student.");
       return;
     }
 
-    const { student, marks } = result;
+    const { student, marks, targetExamType } = result;
     const studentId = student?._id || student?.userId || student?.user?._id || student?.user?.id || student?.studentId;
     const sName = displayName(student);
 
-    // 1. Immediately update local state
+    // 1. Immediately update local state so the input in column shows up right away!
     const nextSubjectMarks = {
       'Semester Exam': { ...(marksBySubject['Semester Exam'] || {}), ...(marks['Semester Exam'] != null ? { [studentId]: marks['Semester Exam'] } : {}) },
       'Assignment': { ...(marksBySubject['Assignment'] || {}), ...(marks['Assignment'] != null ? { [studentId]: marks['Assignment'] } : {}) },
@@ -269,14 +623,26 @@ export default function FacultyMarksEntry() {
     setMarksBySubject(nextSubjectMarks);
 
     setHighlightedStudentId(studentId);
-    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
-    highlightTimerRef.current = setTimeout(() => {
-      setHighlightedStudentId(null);
-    }, 4500);
+    if (targetExamType) setHighlightedExamType(targetExamType);
+    setActiveStudentId(studentId);
+
+    setTimeout(() => {
+      const row = document.getElementById(`student-row-${studentId}`);
+      if (row) {
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      if (targetExamType) {
+        const inp = document.getElementById(`mark-input-${studentId}-${targetExamType.replace(/\s+/g, '-')}`);
+        if (inp) {
+          inp.focus();
+          inp.select();
+        }
+      }
+    }, 60);
 
     const summaryStr = Object.entries(marks).map(([k, v]) => `${k}: ${v}`).join(', ');
     setVoiceFeedbackMsg({ type: 'success', text: `✅ Automatically filled & saving to database for ${sName}: ${summaryStr}...` });
-    speakConfirmation(`Filled and submitting marks for ${sName}`);
+    speakConfirmation(`Mark entered and submitting for ${sName}`);
 
     setVoiceHistory(prev => [
       {
@@ -335,48 +701,82 @@ export default function FacultyMarksEntry() {
   }
 
   function listenAndAutoSubmit() {
+    if (isSubmittingVoice) {
+      stopAllSpeechRecognition();
+      return;
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setVoiceFeedbackMsg({ type: 'warning', text: 'Speech Recognition not supported in this browser. Please use Chrome/Edge.' });
       return;
     }
 
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = false;
-      recognition.interimResults = false;
-      recognition.lang = 'en-US';
+    // Safely stop any previous speech session first
+    stopAllSpeechRecognition();
 
-      setIsSubmittingVoice(true);
-      setVoiceFeedbackMsg({ type: 'success', text: '🎙️ Listening... Speak marks now (e.g. "Vinit Kumar 54 18 16")' });
+    setTimeout(() => {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = false;
+        recognition.interimResults = false;
+        recognition.lang = navigator.language || 'en-IN';
 
-      recognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        if (transcript) {
-          setVoiceTranscript(transcript);
-          setTestCommandInput(transcript);
-          applyAndSubmitMarks(transcript);
-        }
-      };
+        singleRecognitionRef.current = recognition;
+        setIsSubmittingVoice(true);
+        setVoiceFeedbackMsg({ type: 'success', text: '🎙️ Listening NOW... Speak student roll/name and marks (e.g. "Roll 101 mark 50")' });
 
-      recognition.onerror = (event) => {
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          if (transcript) {
+            setVoiceTranscript(transcript);
+            setTestCommandInput(transcript);
+            applyAndSubmitMarks(transcript);
+          }
+        };
+
+        recognition.onerror = (event) => {
+          setIsSubmittingVoice(false);
+          // Ignore benign abort errors from switching/restarting
+          if (event.error === 'aborted' || isIntentionalAbortRef.current) {
+            return;
+          }
+          if (event.error === 'not-allowed') {
+            setVoiceFeedbackMsg({
+              type: 'warning',
+              text: '🔒 Microphone blocked. Click the lock/tune icon in your browser URL bar and set Microphone to "Allow".'
+            });
+          } else if (event.error === 'no-speech') {
+            setVoiceFeedbackMsg({
+              type: 'warning',
+              text: '🎙️ No speech detected. Please speak into your microphone after clicking, or check that mic is unmuted.'
+            });
+          } else if (event.error === 'network') {
+            setVoiceFeedbackMsg({
+              type: 'warning',
+              text: '🌐 Speech recognition network error. Please check your internet connection or use fast roll number entry.'
+            });
+          } else if (event.error === 'audio-capture') {
+            setVoiceFeedbackMsg({
+              type: 'warning',
+              text: '🎙️ No microphone detected. Please plug in or enable your microphone.'
+            });
+          } else {
+            setVoiceFeedbackMsg({ type: 'warning', text: `Voice status: ${event.error}` });
+          }
+        };
+
+        recognition.onend = () => {
+          setIsSubmittingVoice(false);
+          singleRecognitionRef.current = null;
+        };
+
+        recognition.start();
+      } catch (e) {
         setIsSubmittingVoice(false);
-        if (event.error === 'not-allowed') {
-          setVoiceFeedbackMsg({ type: 'warning', text: 'Microphone permission blocked in browser URL bar.' });
-        } else {
-          setVoiceFeedbackMsg({ type: 'warning', text: `Voice recognition: ${event.error}` });
-        }
-      };
-
-      recognition.onend = () => {
-        setIsSubmittingVoice(false);
-      };
-
-      recognition.start();
-    } catch (e) {
-      setIsSubmittingVoice(false);
-      console.warn(e);
-    }
+        console.warn('Speech start error:', e);
+      }
+    }, 60);
   }
 
   function startVoiceListening() {
@@ -384,96 +784,105 @@ export default function FacultyMarksEntry() {
     if (!SpeechRecognition) {
       setVoiceFeedbackMsg({
         type: 'warning',
-        text: 'Speech recognition API not supported in this browser. Please use the quick command input below or Google Chrome / Edge.'
+        text: 'Speech recognition API not supported in this browser. Please use Google Chrome or Edge.'
       });
       return;
     }
 
-    try {
-      if (recognitionRef.current) {
-        recognitionRef.current.abort();
-      }
+    // Safely stop any previous speech session first
+    stopAllSpeechRecognition();
 
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'en-US';
+    setTimeout(() => {
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = navigator.language || 'en-IN';
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        setVoiceFeedbackMsg(null);
-      };
+        recognition.onstart = () => {
+          setIsListening(true);
+          isListeningRef.current = true;
+          setVoiceFeedbackMsg(null);
+        };
 
-      recognition.onresult = (event) => {
-        let interimTranscript = '';
-        let finalTranscript = '';
+        recognition.onresult = (event) => {
+          let interimTranscript = '';
+          let finalTranscript = '';
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript;
-          } else {
-            interimTranscript += event.results[i][0].transcript;
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            if (event.results[i].isFinal) {
+              finalTranscript += event.results[i][0].transcript;
+            } else {
+              interimTranscript += event.results[i][0].transcript;
+            }
           }
-        }
 
-        const activeText = finalTranscript || interimTranscript;
-        if (activeText) {
-          setVoiceTranscript(activeText);
-        }
+          const activeText = finalTranscript || interimTranscript;
+          if (activeText) {
+            setVoiceTranscript(activeText);
+          }
 
-        if (finalTranscript && finalTranscript.trim()) {
-          processVoiceCommand(finalTranscript);
-        }
-      };
+          if (finalTranscript && finalTranscript.trim()) {
+            processVoiceCommand(finalTranscript);
+          }
+        };
 
-      recognition.onerror = (event) => {
-        console.warn('SpeechRecognition error:', event.error);
-        if (event.error === 'not-allowed') {
-          setIsListening(false);
-          setVoiceFeedbackMsg({ type: 'warning', text: 'Microphone access denied. Please grant permission in browser settings.' });
-        }
-      };
-
-      recognition.onend = () => {
-        if (isListeningRef.current) {
-          try {
-            recognition.start();
-          } catch {
+        recognition.onerror = (event) => {
+          console.warn('SpeechRecognition error:', event.error);
+          // Ignore benign abort errors when stopping/restarting
+          if (event.error === 'aborted' || isIntentionalAbortRef.current) {
+            return;
+          }
+          if (event.error === 'not-allowed') {
             setIsListening(false);
+            isListeningRef.current = false;
+            setVoiceFeedbackMsg({ type: 'warning', text: '🔒 Microphone access denied. Please click the URL bar lock icon and allow microphone access.' });
+          } else if (event.error === 'no-speech') {
+            // In continuous mode, no-speech is normal when user is pausing
+          } else if (event.error === 'network') {
+            setVoiceFeedbackMsg({ type: 'warning', text: '🌐 Speech service network error. Check internet connection.' });
+          } else if (event.error === 'audio-capture') {
+            setIsListening(false);
+            isListeningRef.current = false;
+            setVoiceFeedbackMsg({ type: 'warning', text: '🎙️ No microphone detected. Please plug in or enable your microphone.' });
+          } else {
+            setVoiceFeedbackMsg({ type: 'warning', text: `Voice status: ${event.error}` });
           }
-        } else {
-          setIsListening(false);
-        }
-      };
+        };
 
-      recognitionRef.current = recognition;
-      recognition.start();
-      setIsListening(true);
-    } catch (err) {
-      console.error('Failed to start speech recognition:', err);
-      setIsListening(false);
-    }
+        recognition.onend = () => {
+          if (isListeningRef.current && !isIntentionalAbortRef.current) {
+            try {
+              recognition.start();
+            } catch {
+              setIsListening(false);
+              isListeningRef.current = false;
+            }
+          } else {
+            setIsListening(false);
+            isListeningRef.current = false;
+          }
+        };
+
+        recognitionRef.current = recognition;
+        recognition.start();
+        setIsListening(true);
+        isListeningRef.current = true;
+      } catch (err) {
+        console.error('Failed to start speech recognition:', err);
+        setIsListening(false);
+        isListeningRef.current = false;
+      }
+    }, 60);
   }
 
   function stopVoiceListening() {
-    setIsListening(false);
-    isListeningRef.current = false;
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        console.warn(e);
-      }
-    }
+    stopAllSpeechRecognition();
   }
 
   useEffect(() => {
     return () => {
-      if (recognitionRef.current) {
-        try {
-          recognitionRef.current.abort();
-        } catch (e) { }
-      }
+      stopAllSpeechRecognition();
       if (highlightTimerRef.current) {
         clearTimeout(highlightTimerRef.current);
       }
@@ -594,6 +1003,9 @@ export default function FacultyMarksEntry() {
 
   useEffect(() => {
     if (selectedCourse) {
+      try {
+        localStorage.setItem('faculty_selected_course', selectedCourse);
+      } catch { }
       loadStudents();
       loadExistingMarks();
     }
@@ -645,9 +1057,22 @@ export default function FacultyMarksEntry() {
       console.log('Final courses array:', all);
 
       setCourses(all);
-      if (all.length && !selectedCourse) {
-        const firstId = getCourseId(all[0]);
-        if (firstId) setSelectedCourse(firstId);
+      if (all.length) {
+        let courseToSelect = '';
+        try {
+          const saved = localStorage.getItem('faculty_selected_course');
+          if (saved && all.find(c => getCourseId(c) === saved)) {
+            courseToSelect = saved;
+          }
+        } catch { }
+
+        if (!courseToSelect && !selectedCourse) {
+          courseToSelect = getCourseId(all[0]);
+        }
+
+        if (courseToSelect && courseToSelect !== selectedCourse) {
+          setSelectedCourse(courseToSelect);
+        }
       }
     } catch (err) {
       console.error('Load courses error:', err);
@@ -664,6 +1089,7 @@ export default function FacultyMarksEntry() {
       const students = Array.isArray(r?.items) ? r.items : (r?.students || []);
       console.log('Processed students array:', students);
       setStudents(students);
+      loadExistingMarks();
     } catch (err) {
       console.error('Failed to load students:', err);
       setError('Failed to load students');
@@ -671,6 +1097,13 @@ export default function FacultyMarksEntry() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function getStudentUserId(student, idx = 0) {
+    if (!student) return `temp-${idx}`;
+    const uid = student?.user?._id || student?.user?.id || (typeof student?.profile?.user === 'string' ? student?.profile?.user : student?.profile?.user?._id);
+    if (uid) return String(uid);
+    return String(student?._id || student?.userId || student?.studentId || student?.id || `temp-${idx}`);
   }
 
   async function loadExistingMarks() {
@@ -681,12 +1114,31 @@ export default function FacultyMarksEntry() {
       const loadedMarks = r?.marks || {};
       setExistingMarks(loadedMarks);
 
-      // hydrate subject-wise state
+      // hydrate subject-wise state (support both space-separated and camelCase keys)
       const next = { 'Semester Exam': {}, 'Assignment': {}, 'Practical': {} };
       Object.entries(loadedMarks).forEach(([studentId, row]) => {
-        if (row?.semesterExam != null) next['Semester Exam'][studentId] = row.semesterExam;
-        if (row?.assignment != null) next['Assignment'][studentId] = row.assignment;
-        if (row?.practical != null) next['Practical'][studentId] = row.practical;
+        const sem = row?.['Semester Exam'] ?? row?.semesterExam;
+        const assign = row?.['Assignment'] ?? row?.assignment;
+        const prac = row?.['Practical'] ?? row?.practical;
+
+        const sIdStr = String(studentId);
+        if (sem != null && sem !== '') next['Semester Exam'][sIdStr] = Number(sem);
+        if (assign != null && assign !== '') next['Assignment'][sIdStr] = Number(assign);
+        if (prac != null && prac !== '') next['Practical'][sIdStr] = Number(prac);
+
+        // Also map to student's other ID aliases if present
+        const matched = students.find(s =>
+          String(s?.user?._id || s?.user?.id || s?._id || s?.userId || '') === sIdStr ||
+          String(s?.profile?.user || '') === sIdStr
+        );
+        if (matched) {
+          const allAliases = [matched?.user?._id, matched?.user?.id, matched?._id, matched?.userId].filter(Boolean).map(String);
+          allAliases.forEach(alias => {
+            if (sem != null && sem !== '') next['Semester Exam'][alias] = Number(sem);
+            if (assign != null && assign !== '') next['Assignment'][alias] = Number(assign);
+            if (prac != null && prac !== '') next['Practical'][alias] = Number(prac);
+          });
+        }
       });
       setMarksBySubject(next);
 
@@ -720,33 +1172,87 @@ export default function FacultyMarksEntry() {
     }
   }
 
-  function handleMarkChange(studentId, examType, value) {
+  function handleMarkChange(studentOrId, examType, value) {
     const max = markDistribution[examType].maxMarks;
-    const num = Math.max(0, Math.min(max, Number(value) || 0));
-    setMarksBySubject(prev => ({
-      ...prev,
-      [examType]: {
-        ...prev[examType],
-        [studentId]: num
-      }
-    }));
+    const num = value === '' ? '' : Math.max(0, Math.min(max, Number(value) || 0));
+    const sid = typeof studentOrId === 'object' ? getStudentUserId(studentOrId) : String(studentOrId);
+    const studentObj = typeof studentOrId === 'object' ? studentOrId : students.find(s => getStudentUserId(s) === sid || String(s?._id) === sid);
+    const ids = studentObj ? [
+      studentObj?.user?._id,
+      studentObj?.user?.id,
+      studentObj?._id,
+      studentObj?.userId
+    ].filter(Boolean).map(String) : [sid];
+
+    setMarksBySubject(prev => {
+      const nextMap = { ...(prev[examType] || {}) };
+      ids.forEach(id => {
+        nextMap[id] = num;
+      });
+      return {
+        ...prev,
+        [examType]: nextMap
+      };
+    });
   }
 
-  function getValue(studentId, examType) {
-    return marksBySubject[examType]?.[studentId] ?? '';
-  }
+  function getValue(studentOrId, examType) {
+    if (!studentOrId) return '';
+    const sid = typeof studentOrId === 'object' ? getStudentUserId(studentOrId) : String(studentOrId);
 
-  function calculateTotal(studentId) {
-    if (selectedExamType === 'All Subjects') {
-      return (
-        (marksBySubject['Semester Exam']?.[studentId] || 0) +
-        (marksBySubject['Assignment']?.[studentId] || 0) +
-        (marksBySubject['Practical']?.[studentId] || 0)
-      );
-    } else {
-      // For specific subjects, show only that subject's marks
-      return marksBySubject[selectedExamType]?.[studentId] || 0;
+    // 1. Direct match in marksBySubject
+    if (marksBySubject[examType]?.[sid] !== undefined && marksBySubject[examType]?.[sid] !== '') {
+      return marksBySubject[examType][sid];
     }
+
+    // 2. Search aliases via student object
+    const studentObj = typeof studentOrId === 'object'
+      ? studentOrId
+      : students.find(s =>
+          String(s?.user?._id || s?.user?.id || s?._id || s?.userId || '') === sid ||
+          String(s?.profile?.user || '') === sid
+        );
+
+    if (studentObj) {
+      const possibleIds = [
+        studentObj?.user?._id,
+        studentObj?.user?.id,
+        typeof studentObj?.profile?.user === 'string' ? studentObj?.profile?.user : studentObj?.profile?.user?._id,
+        studentObj?._id,
+        studentObj?.userId,
+        studentObj?.studentId
+      ].filter(Boolean).map(String);
+
+      for (const id of possibleIds) {
+        if (marksBySubject[examType]?.[id] !== undefined && marksBySubject[examType]?.[id] !== '') {
+          return marksBySubject[examType][id];
+        }
+        const row = existingMarks[id];
+        if (row) {
+          const val = row[examType] ?? (examType === 'Semester Exam' ? row.semesterExam : examType === 'Assignment' ? row.assignment : row.practical);
+          if (val !== undefined && val !== null && val !== '') return val;
+        }
+      }
+    }
+
+    // 3. Fallback directly to existingMarks by sid
+    const directRow = existingMarks[sid];
+    if (directRow) {
+      const val = directRow[examType] ?? (examType === 'Semester Exam' ? directRow.semesterExam : examType === 'Assignment' ? directRow.assignment : directRow.practical);
+      if (val !== undefined && val !== null && val !== '') return val;
+    }
+
+    return '';
+  }
+
+  function calculateTotal(studentOrId) {
+    const sem = Number(getValue(studentOrId, 'Semester Exam')) || 0;
+    const assign = Number(getValue(studentOrId, 'Assignment')) || 0;
+    const prac = Number(getValue(studentOrId, 'Practical')) || 0;
+    if (selectedExamType === 'All Subjects') {
+      return sem + assign + prac;
+    }
+    return Number(getValue(studentOrId, selectedExamType)) || 0;
   }
 
   function calculateGrade(total) {
@@ -773,7 +1279,7 @@ export default function FacultyMarksEntry() {
 
       // Filter out invalid student IDs
       const validStudents = students.filter((student, idx) => {
-        const studentId = student?._id || student?.userId || student?.user?._id || student?.user?.id || student?.studentId || `temp-${idx}`;
+        const studentId = getStudentUserId(student, idx);
         return studentId &&
           studentId !== `temp-0` &&
           !studentId.startsWith('temp-') &&
@@ -789,16 +1295,17 @@ export default function FacultyMarksEntry() {
 
       const payload = {
         courseId: selectedCourse,
-        marks: validStudents.map(student => {
-          const studentId = student?._id || student?.userId || student?.user?._id || student?.user?.id || student?.studentId;
-          const total = (marksBySubject['Semester Exam']?.[studentId] || 0) +
-            (marksBySubject['Assignment']?.[studentId] || 0) +
-            (marksBySubject['Practical']?.[studentId] || 0);
+        marks: validStudents.map((student, idx) => {
+          const studentId = getStudentUserId(student, idx);
+          const sem = Number(getValue(student, 'Semester Exam')) || 0;
+          const assign = Number(getValue(student, 'Assignment')) || 0;
+          const prac = Number(getValue(student, 'Practical')) || 0;
+          const total = sem + assign + prac;
           return {
             studentId,
-            semesterExam: marksBySubject['Semester Exam']?.[studentId] || 0,
-            assignment: marksBySubject['Assignment']?.[studentId] || 0,
-            practical: marksBySubject['Practical']?.[studentId] || 0,
+            semesterExam: sem,
+            assignment: assign,
+            practical: prac,
             total: total,
             grade: calculateGrade(total)
           };
@@ -954,10 +1461,10 @@ export default function FacultyMarksEntry() {
               <div className="voice-console-actions">
                 <button
                   type="button"
-                  className={`btn-voice-toggle ${isListening ? 'recording' : 'paused'}`}
-                  onClick={isListening ? stopVoiceListening : startVoiceListening}
+                  className={`btn-voice-toggle ${(isListening || isSubmittingVoice) ? 'recording' : 'paused'}`}
+                  onClick={(isListening || isSubmittingVoice) ? stopAllSpeechRecognition : startVoiceListening}
                 >
-                  {isListening ? '⏹️ Stop Listening' : '🎙️ Start Listening'}
+                  {(isListening || isSubmittingVoice) ? '⏹️ Stop Listening' : '🎙️ Start Listening'}
                 </button>
                 <label className="voice-tts-toggle">
                   <input
@@ -988,31 +1495,106 @@ export default function FacultyMarksEntry() {
               </p>
             </div>
 
+            {/* Active Student & Column Voice Target Indicator */}
+            {selectedCourse && students.length > 0 && (
+              <div style={{
+                margin: '10px 0',
+                padding: '8px 14px',
+                background: 'rgba(99, 102, 241, 0.15)',
+                border: '1px solid rgba(99, 102, 241, 0.4)',
+                borderRadius: '8px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                flexWrap: 'wrap',
+                gap: '8px',
+                fontSize: '0.85rem'
+              }}>
+                <div>
+                  <span style={{ color: '#94a3b8' }}>🎯 Active Target: </span>
+                  <strong style={{ color: '#ffffff' }}>
+                    {displayName(students.find(s => {
+                      const sid = s?._id || s?.userId || s?.user?._id || s?.user?.id || s?.studentId;
+                      return sid === activeStudentId;
+                    }) || students[0])}
+                  </strong>
+                  <span style={{ margin: '0 8px', color: '#64748b' }}>|</span>
+                  <span style={{ color: '#94a3b8' }}>Target Column: </span>
+                  <strong style={{ color: '#38bdf8' }}>{activeExamType || selectedExamType}</strong>
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#a5b4fc' }}>
+                  💬 Speak <strong>"mask 50"</strong> or <strong>"tell him to mask 50"</strong> to automatically show mark in column!
+                </div>
+              </div>
+            )}
+
             <div style={{ margin: '8px 0 14px 0', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
-              <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 700 }}>1-Click Auto-Submit Demos:</span>
+              <span style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 700 }}>Quick Voice Demos:</span>
               <button
                 type="button"
                 className="btn btn-voice"
-                style={{ padding: '6px 14px', fontSize: '0.8rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}
+                style={{ padding: '6px 12px', fontSize: '0.78rem', borderRadius: '8px', cursor: 'pointer', fontWeight: 700 }}
                 onClick={() => {
-                  const cmd = 'Vinit Kumar semester 54 assignment 18 practical 16';
+                  const cmd = 'mask 50';
                   setVoiceTranscript(cmd);
                   applyAndSubmitMarks(cmd);
                 }}
+                title="Automatically puts 50 into active target column"
               >
-                🚀 Auto-Fill & Submit: Vinit (54, 18, 16)
+                ⚡ "mask 50" (Active Target)
               </button>
               <button
                 type="button"
                 className="btn btn-secondary"
                 style={{ padding: '5px 12px', fontSize: '0.78rem', background: 'rgba(16, 185, 129, 0.25)', border: '1px solid #10b981', color: '#d1fae5', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
                 onClick={() => {
-                  const cmd = 'Vinit Kumar 50 15 18';
+                  const cmd = 'tell him to mask 52';
                   setVoiceTranscript(cmd);
                   applyAndSubmitMarks(cmd);
                 }}
               >
-                ⚡ Vinit: 50, 15, 18 (Auto-Submit)
+                ⚡ "tell him to mask 52"
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '5px 12px', fontSize: '0.78rem', background: 'rgba(56, 189, 248, 0.25)', border: '1px solid #38bdf8', color: '#e0f2fe', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+                onClick={() => {
+                  const s = students[0];
+                  const sName = s ? displayName(s) : 'Vinit Kumar';
+                  const cmd = `${sName} mask 48`;
+                  setVoiceTranscript(cmd);
+                  applyAndSubmitMarks(cmd);
+                }}
+              >
+                ⚡ "[Student] mask 48"
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '5px 12px', fontSize: '0.78rem', background: 'rgba(245, 158, 11, 0.25)', border: '1px solid #f59e0b', color: '#fef3c7', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+                onClick={() => {
+                  const cmd = 'mask 19 assignment';
+                  setVoiceTranscript(cmd);
+                  applyAndSubmitMarks(cmd);
+                }}
+              >
+                ⚡ "mask 19 assignment"
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                style={{ padding: '5px 12px', fontSize: '0.78rem', background: 'rgba(168, 85, 247, 0.25)', border: '1px solid #a855f7', color: '#f3e8ff', borderRadius: '6px', cursor: 'pointer', fontWeight: 600 }}
+                onClick={() => {
+                  const s = students[0];
+                  const prof = s?.profile || {};
+                  const roll = prof.rollNo || prof.registerNumber || s?.rollNo || '23IT01';
+                  const cmd = `${roll} mark 52`;
+                  setVoiceTranscript(cmd);
+                  applyAndSubmitMarks(cmd);
+                }}
+              >
+                ⚡ "23IT01 mark 52"
               </button>
             </div>
 
@@ -1022,10 +1604,32 @@ export default function FacultyMarksEntry() {
                 style={{
                   borderColor: voiceFeedbackMsg.type === 'warning' ? '#f59e0b' : '#10b981',
                   color: voiceFeedbackMsg.type === 'warning' ? '#fde68a' : '#34d399',
-                  background: voiceFeedbackMsg.type === 'warning' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)'
+                  background: voiceFeedbackMsg.type === 'warning' ? 'rgba(245, 158, 11, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px'
                 }}
               >
-                {voiceFeedbackMsg.type === 'warning' ? '⚠️' : '✅'} {voiceFeedbackMsg.text}
+                <span>{voiceFeedbackMsg.type === 'warning' ? '⚠️' : '✅'} {voiceFeedbackMsg.text}</span>
+                {(isListening || isSubmittingVoice) && (
+                  <button
+                    type="button"
+                    onClick={stopAllSpeechRecognition}
+                    style={{
+                      background: '#ef4444',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '4px 10px',
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    ⏹️ Stop Listening
+                  </button>
+                )}
               </div>
             )}
 
@@ -1066,20 +1670,27 @@ export default function FacultyMarksEntry() {
                     cursor: 'pointer',
                     fontSize: '0.9rem'
                   }}
-                  onClick={listenAndAutoSubmit}
-                  title="Click to speak voice command & auto-submit"
+                  onClick={isSubmittingVoice ? stopAllSpeechRecognition : listenAndAutoSubmit}
+                  title={isSubmittingVoice ? "Click to stop listening" : "Click to speak voice command & auto-submit"}
                 >
-                  🎙️
+                  {isSubmittingVoice ? '⏹️' : '🎙️'}
                 </button>
               </div>
 
               <button
                 type="button"
-                className="btn btn-voice"
-                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
-                onClick={listenAndAutoSubmit}
+                className={`btn ${isSubmittingVoice ? 'btn-danger' : 'btn-voice'}`}
+                style={{
+                  padding: '8px 16px',
+                  fontSize: '0.85rem',
+                  background: isSubmittingVoice ? '#ef4444' : undefined,
+                  borderColor: isSubmittingVoice ? '#dc2626' : undefined,
+                  color: '#ffffff',
+                  fontWeight: 700
+                }}
+                onClick={isSubmittingVoice ? stopAllSpeechRecognition : listenAndAutoSubmit}
               >
-                🎙️ {isSubmittingVoice ? 'Listening...' : 'Speak & Auto-Submit'}
+                {isSubmittingVoice ? '⏹️ Stop Listening' : '🎙️ Speak & Auto-Submit'}
               </button>
 
               <button
@@ -1210,6 +1821,65 @@ export default function FacultyMarksEntry() {
               </div>
             </div>
 
+            {/* ⚡ Quick Roll Number Mark Entry Bar */}
+            <div className="quick-roll-entry-card">
+              <div className="quick-roll-title">
+                <span className="quick-roll-badge">⚡ Fast Roll Number Mark Entry</span>
+                <span className="quick-roll-hint">See student roll number on answer sheet &rarr; enter roll and mark to automatically show in table column & save</span>
+              </div>
+              <form onSubmit={handleQuickRollSubmit} className="quick-roll-form">
+                <div className="quick-roll-input-wrap">
+                  <label>Student Roll / Reg No</label>
+                  <input
+                    ref={quickRollInputRef}
+                    type="text"
+                    placeholder="e.g. 101 or CS101"
+                    value={quickRollNo}
+                    onChange={e => setQuickRollNo(e.target.value)}
+                    list="student-roll-list"
+                    autoComplete="off"
+                    required
+                  />
+                  <datalist id="student-roll-list">
+                    {students.map(s => {
+                      const prof = s?.profile || {};
+                      const roll = prof.rollNo || prof.registerNumber || s?.rollNo || s?.registerNumber;
+                      return roll ? <option key={roll} value={roll}>{displayName(s)} (Roll: {roll})</option> : null;
+                    })}
+                  </datalist>
+                </div>
+
+                <div className="quick-roll-input-wrap">
+                  <label>Target Column / Exam</label>
+                  <select
+                    value={quickExamType}
+                    onChange={e => setQuickExamType(e.target.value)}
+                  >
+                    <option value="Semester Exam">Semester Exam (Max 60)</option>
+                    <option value="Assignment">Assignment (Max 20)</option>
+                    <option value="Practical">Practical (Max 20)</option>
+                  </select>
+                </div>
+
+                <div className="quick-roll-input-wrap" style={{ maxWidth: '120px' }}>
+                  <label>Mark</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max={markDistribution[quickExamType]?.maxMarks || 60}
+                    placeholder={`0-${markDistribution[quickExamType]?.maxMarks || 60}`}
+                    value={quickMark}
+                    onChange={e => setQuickMark(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <button type="submit" className="btn btn-primary quick-roll-btn" disabled={saving}>
+                  ⚡ Enter Mark
+                </button>
+              </form>
+            </div>
+
             {/* Debug Information */}
             {selectedExamType && selectedExamType !== 'All Subjects' && (
               <div className="debug-info" style={{
@@ -1248,8 +1918,8 @@ export default function FacultyMarksEntry() {
                   </thead>
                   <tbody>
                     {students.map((student, idx) => {
-                      const studentId = student?._id || student?.userId || student?.user?._id || student?.user?.id || student?.studentId || `temp-${idx}`;
-                      const total = calculateTotal(studentId);
+                      const studentId = getStudentUserId(student, idx);
+                      const total = calculateTotal(student);
                       const grade = calculateGrade(total);
                       const prof = student?.profile || {};
                       const regNo = prof.registerNumber || prof.rollNo || '-';
@@ -1257,45 +1927,70 @@ export default function FacultyMarksEntry() {
                       return (
                         <tr
                           key={studentId}
-                          className={highlightedStudentId === studentId ? 'voice-matched-row' : ''}
+                          id={`student-row-${studentId}`}
+                          className={`${highlightedStudentId === studentId ? 'voice-matched-row' : ''} ${activeStudentId === studentId ? 'active-focus-row' : ''}`}
+                          onClick={() => setActiveStudentId(studentId)}
+                          style={{ cursor: 'pointer' }}
                         >
-                          <td className="student-name">{displayName(student)}</td>
+                          <td className="student-name">
+                            {displayName(student)}
+                            {activeStudentId === studentId && (
+                              <span style={{ marginLeft: '8px', fontSize: '0.72rem', background: '#3b82f6', color: '#fff', padding: '2px 6px', borderRadius: '4px', fontWeight: 700 }}>
+                                ACTIVE
+                              </span>
+                            )}
+                          </td>
                           <td className="reg-no">{regNo}</td>
                           {show('Semester Exam') && (
-                            <td>
+                            <td className={highlightedStudentId === studentId && highlightedExamType === 'Semester Exam' ? 'voice-cell-updated' : ''}>
                               <input
                                 type="number"
+                                id={`mark-input-${studentId}-Semester-Exam`}
                                 className="mark-input"
                                 min="0"
                                 max="60"
-                                value={getValue(studentId, 'Semester Exam')}
-                                onChange={(e) => handleMarkChange(studentId, 'Semester Exam', e.target.value)}
+                                value={getValue(student, 'Semester Exam')}
+                                onFocus={() => {
+                                  setActiveStudentId(studentId);
+                                  setActiveExamType('Semester Exam');
+                                }}
+                                onChange={(e) => handleMarkChange(student, 'Semester Exam', e.target.value)}
                                 placeholder="0-60"
                               />
                             </td>
                           )}
                           {show('Assignment') && (
-                            <td>
+                            <td className={highlightedStudentId === studentId && highlightedExamType === 'Assignment' ? 'voice-cell-updated' : ''}>
                               <input
                                 type="number"
+                                id={`mark-input-${studentId}-Assignment`}
                                 className="mark-input"
                                 min="0"
                                 max="20"
-                                value={getValue(studentId, 'Assignment')}
-                                onChange={(e) => handleMarkChange(studentId, 'Assignment', e.target.value)}
+                                value={getValue(student, 'Assignment')}
+                                onFocus={() => {
+                                  setActiveStudentId(studentId);
+                                  setActiveExamType('Assignment');
+                                }}
+                                onChange={(e) => handleMarkChange(student, 'Assignment', e.target.value)}
                                 placeholder="0-20"
                               />
                             </td>
                           )}
                           {show('Practical') && (
-                            <td>
+                            <td className={highlightedStudentId === studentId && highlightedExamType === 'Practical' ? 'voice-cell-updated' : ''}>
                               <input
                                 type="number"
+                                id={`mark-input-${studentId}-Practical`}
                                 className="mark-input"
                                 min="0"
                                 max="20"
-                                value={getValue(studentId, 'Practical')}
-                                onChange={(e) => handleMarkChange(studentId, 'Practical', e.target.value)}
+                                value={getValue(student, 'Practical')}
+                                onFocus={() => {
+                                  setActiveStudentId(studentId);
+                                  setActiveExamType('Practical');
+                                }}
+                                onChange={(e) => handleMarkChange(student, 'Practical', e.target.value)}
                                 placeholder="0-20"
                               />
                             </td>

@@ -791,6 +791,7 @@ class NexusMindMLHandler(BaseHTTPRequestHandler):
             try:
                 from skimage.feature import hog
                 h = hog(arr, orientations=8, pixels_per_cell=(16, 16), cells_per_block=(1, 1))
+                h = h - np.mean(h)
                 norm = np.linalg.norm(h)
                 if norm > 0.01:
                     return (h / norm).tolist()
@@ -802,6 +803,7 @@ class NexusMindMLHandler(BaseHTTPRequestHandler):
             means = [float(np.mean(b)) for b in blocks]
             stds = [float(np.std(b)) for b in blocks]
             vec = np.array(means + stds, dtype=np.float32)
+            vec = vec - np.mean(vec)
             norm = np.linalg.norm(vec)
             if norm > 0.01:
                 vec /= norm
@@ -908,8 +910,14 @@ class NexusMindMLHandler(BaseHTTPRequestHandler):
                 if not face_emb_list or all(v == 0 for v in face_emb_list):
                     continue
                 face_emb = np.array(face_emb_list, dtype=np.float32)
+                face_emb = face_emb - np.mean(face_emb)
+                f_norm = np.linalg.norm(face_emb)
+                if f_norm < 1e-4:
+                    continue
+                face_emb /= f_norm
 
                 best_sim = -1.0
+                second_sim = -1.0
                 best_candidate = None
 
                 for cand in candidates:
@@ -921,21 +929,35 @@ class NexusMindMLHandler(BaseHTTPRequestHandler):
                         continue
                     
                     c_vec = np.array(c_emb, dtype=np.float32)
+                    c_vec = c_vec - np.mean(c_vec)
                     c_norm = np.linalg.norm(c_vec)
-                    if c_norm < 0.01:
+                    if c_norm < 1e-4:
                         continue
-                    sim = float(np.dot(face_emb, c_vec / c_norm))
+                    c_vec /= c_norm
+
+                    sim = float(np.dot(face_emb, c_vec))
                     if sim > best_sim:
+                        second_sim = best_sim
                         best_sim = sim
                         best_candidate = cand
+                    elif sim > second_sim:
+                        second_sim = sim
 
+                # Require genuine biometric match:
+                # 1. Similarity must exceed threshold (default >= 0.65)
+                # 2. If multiple candidates, margin over second best must be at least 0.06
+                is_valid_match = False
                 if best_candidate and best_sim >= threshold:
+                    if len(candidates) <= 1 or (best_sim - second_sim >= 0.06) or best_sim >= 0.80:
+                        is_valid_match = True
+
+                if is_valid_match:
                     matched_student_ids.add(best_candidate.get('studentId'))
                     matches.append({
                         "studentId": best_candidate.get('studentId'),
                         "name": best_candidate.get('name', 'Student'),
                         "rollNo": best_candidate.get('rollNo', ''),
-                        "confidence": round(float(min(1.0, (best_sim + 0.15))), 3),
+                        "confidence": round(float(min(1.0, max(0.0, best_sim))), 3),
                         "similarity": round(float(best_sim), 3),
                         "box": box
                     })

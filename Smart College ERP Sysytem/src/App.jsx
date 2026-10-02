@@ -8,6 +8,8 @@ import StudentProfile from "./features/student/StudentProfile";
 import StudentCourses from "./features/student/StudentCourses";
 import StudentAttendance from "./features/student/StudentAttendance";
 import StudentAssignments from "./features/student/StudentAssignments";
+import StudentAcademicRisk from "./features/student/StudentAcademicRisk";
+import StudentNotifications from "./features/student/StudentNotifications";
 
 /* -------- FACULTY -------- */
 import FacultyLayout from "./features/faculty/FacultyLayout";
@@ -120,6 +122,9 @@ export default function App() {
           <Route path="courses" element={<StudentCourses />} />
           <Route path="attendance" element={<StudentAttendance />} />
           <Route path="assignments" element={<StudentAssignments />} />
+          <Route path="academic-risk" element={<StudentAcademicRisk />} />
+          <Route path="results" element={<StudentAcademicRisk />} />
+          <Route path="notifications" element={<StudentNotifications />} />
         </Route>
 
         {/* ================= FACULTY ================= */}

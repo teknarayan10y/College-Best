@@ -16,6 +16,7 @@ import {
 } from "react-icons/fa";
 import { api } from "../../auth/api";
 import FacultyAiChat from "./FacultyAiChat";
+import NotificationBell from "../../components/NotificationBell";
 import "../student/StudentDashboard.css";
 
 function toAbsoluteUploadUrl(pathOrUrl) {
@@ -162,10 +163,7 @@ export default function FacultyLayout() {
           </div>
 
           <div className="header-right">
-            <NavLink to="/faculty/notifications" className="notification" title="Notifications">
-              <FaBell className="nav-icon" />
-              {notices.length > 0 && <span className="badge">{notices.length}</span>}
-            </NavLink>
+            <NotificationBell />
 
             <div
               className="header-profile clickable"

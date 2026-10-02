@@ -103,10 +103,15 @@ async function faceLogin(req, res) {
         studentId: String(user._id),
         name: user.name || 'User',
         faceEmbedding: userFaceEmbedding
-      }], 0.45);
+      }], 0.68);
 
-      if (!matchRes || !matchRes.matchedCount) {
+      if (!matchRes || !matchRes.matchedCount || !matchRes.matches?.length) {
         return res.status(401).json({ message: 'Face does not match your enrolled profile. Please ensure bright lighting and face the camera directly.' });
+      }
+
+      const match = matchRes.matches[0];
+      if ((match.similarity || 0) < 0.68) {
+        return res.status(401).json({ message: 'Face verification failed: biometric similarity too low for this account.' });
       }
 
       const token = signToken(user);
@@ -184,12 +189,16 @@ async function faceLogin(req, res) {
       extraUsers.forEach(u => userMap.set(String(u._id), u));
     }
 
-    const matchRes = await matchClassPhotoFaces(image, candidates, 0.45);
+    const matchRes = await matchClassPhotoFaces(image, candidates, 0.72);
     if (!matchRes || !matchRes.matchedCount || !matchRes.matches.length) {
-      return res.status(401).json({ message: 'Face not recognized. Please ensure your FaceID is enrolled or enter your registered email.' });
+      return res.status(401).json({ message: 'Face not recognized. Only registered persons whose face matches can log in. Please enter your email or enroll in Profile.' });
     }
 
     const matchedCandidate = matchRes.matches[0];
+    if ((matchedCandidate.similarity || 0) < 0.70) {
+      return res.status(401).json({ message: 'Face match confidence insufficient. Please enter your registered email to verify directly.' });
+    }
+
     const matchedUser = userMap.get(matchedCandidate.studentId);
     if (!matchedUser) {
       return res.status(404).json({ message: 'User account not found' });

@@ -13,8 +13,8 @@ async function request(path, options = {}) {
   if (!res.ok) {
     const err = new Error(data?.message || `HTTP ${res.status}`);
     err.status = res.status;
-    // Handle 401 Unauthorized - clear token and redirect to login
-    if (res.status === 401 && !path.includes('/auth/login') && !path.includes('/auth/signup')) {
+    // Handle 401 Unauthorized for authenticated endpoints - do not redirect on login/face-login attempts
+    if (res.status === 401 && !path.includes('login') && !path.includes('signup') && !path.includes('face-login')) {
       clearToken();
       clearUser();
       if (typeof window !== 'undefined') {
@@ -44,8 +44,8 @@ async function requestForm(path, formData, options = {}) {
   if (!res.ok) {
     const err = new Error(data?.message || `HTTP ${res.status}`);
     err.status = res.status;
-    // Handle 401 Unauthorized - clear token and redirect to login
-    if (res.status === 401 && !path.includes('/auth/login') && !path.includes('/auth/signup')) {
+    // Handle 401 Unauthorized for authenticated endpoints - do not redirect on login/face-login attempts
+    if (res.status === 401 && !path.includes('login') && !path.includes('signup') && !path.includes('face-login')) {
       clearToken();
       clearUser();
       if (typeof window !== 'undefined') {
@@ -334,6 +334,33 @@ adminAiScanPhoto: (payload) =>
   request('/admin/attendance/ai-scan-photo', { method: 'POST', body: JSON.stringify(payload) }),
 
 adminAiScanVoice: (payload) =>
-  request('/admin/attendance/ai-scan-voice', { method: 'POST', body: JSON.stringify(payload) })
+  request('/admin/attendance/ai-scan-voice', { method: 'POST', body: JSON.stringify(payload) }),
+
+// Notifications
+getNotifications: (limit = 20) =>
+  request(`/notifications?limit=${limit}`),
+
+markNotificationRead: (id) =>
+  request(`/notifications/${id}/read`, { method: 'PATCH' }),
+
+markAllNotificationsRead: () =>
+  request('/notifications/read-all', { method: 'PATCH' }),
+
+deleteNotification: (id) =>
+  request(`/notifications/${id}`, { method: 'DELETE' }),
+
+clearAllNotifications: () =>
+  request('/notifications/clear-all', { method: 'DELETE' }),
+
+// Attendance 75% Predictive Analytics & Trends
+studentAttendanceTrends: () =>
+  request('/student/attendance/trends'),
+
+// Multi-Factor Academic Risk Analysis
+studentAcademicRisk: () =>
+  request('/academic-risk/student'),
+
+facultyCourseAcademicRisk: (courseId) =>
+  request(`/academic-risk/faculty/${courseId}`)
 };
 

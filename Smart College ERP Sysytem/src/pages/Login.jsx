@@ -427,6 +427,28 @@ export default function Login() {
               </div>
             )}
 
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '4px', textAlign: 'left' }}>
+              <label style={{ fontSize: '0.78rem', color: '#94a3b8', fontWeight: 600 }}>
+                Your Registered Email (Optional — for direct 1-to-1 account verification):
+              </label>
+              <input
+                type="email"
+                placeholder="e.g. student@college.edu"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  background: 'rgba(255, 255, 255, 0.07)',
+                  border: '1px solid rgba(255, 255, 255, 0.18)',
+                  color: '#ffffff',
+                  fontSize: '0.85rem',
+                  outline: 'none'
+                }}
+              />
+            </div>
+
             {/* Camera Viewfinder with Apple-style Reticle and Laser Sweep */}
             <div style={{
               width: '100%',

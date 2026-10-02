@@ -4,6 +4,7 @@ import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { clearToken, clearUser, getUser, setUser } from "../../auth/storage";
 import { api } from "../../auth/api";
 import StudentAiChat from "./StudentAiChat";
+import NotificationBell from "../../components/NotificationBell";
 import "./StudentDashboard.css";
 
 /* ICONS */
@@ -145,7 +146,12 @@ export default function StudentLayout() {
 
           <NavLink to="/student/results" className="nav-item">
             <FaChartBar className="nav-icon" />
-            <span>Results</span>
+            <span>Academic Risk & Results</span>
+          </NavLink>
+
+          <NavLink to="/student/notifications" className="nav-item">
+            <FaBell className="nav-icon" />
+            <span>Notifications</span>
           </NavLink>
 
           <NavLink to="/student/fees" className="nav-item">
@@ -188,10 +194,7 @@ export default function StudentLayout() {
           </div>
 
           <div className="header-right">
-            <NavLink to="/student/notifications" className="notification" title="Notifications">
-              <FaBell className="nav-icon" />
-              {notices.length > 0 && <span className="badge">{notices.length}</span>}
-            </NavLink>
+            <NotificationBell />
 
             <div
               className="header-profile clickable"

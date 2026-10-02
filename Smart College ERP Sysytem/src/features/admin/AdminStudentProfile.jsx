@@ -62,6 +62,8 @@ export default function AdminStudentProfile() {
         pincode: form.pincode,
         // Academic
         studentId: form.studentId,
+        rollNo: form.rollNo,
+        registerNumber: form.registerNumber,
         branch: form.branch,
         semester: form.semester,
         section: form.section,
@@ -110,7 +112,7 @@ export default function AdminStudentProfile() {
   const hasPersonal = p.firstName || p.lastName || p.gender || p.dob;
   const hasContact = p.phone || p.altPhone || p.address || p.city || p.state || p.pincode;
   const hasAcademic =
-    p.studentId || p.branch || p.semester || p.section || p.year || p.cgpa ||
+    p.studentId || p.rollNo || p.registerNumber || p.branch || p.semester || p.section || p.year || p.cgpa ||
     (Array.isArray(p.skills) && p.skills.length) || p.projects;
   const hasLinks = p.github || p.linkedin || p.portfolio || p.resumeLink || p.remarks;
 
@@ -175,6 +177,8 @@ export default function AdminStudentProfile() {
                 
                 <div className="grid-2">
                   <div><strong>Student ID:</strong> {p.studentId || "-"}</div>
+                  <div><strong>Roll Number:</strong> {p.rollNo || "-"}</div>
+                  <div><strong>Register Number:</strong> {p.registerNumber || "-"}</div>
                   <div><strong>Branch:</strong> {p.branch || "-"}</div>
                   <div><strong>Semester:</strong> {p.semester || "-"}</div>
                   <div><strong>Section:</strong> {p.section || "-"}</div>
@@ -259,6 +263,12 @@ export default function AdminStudentProfile() {
             {/* Academic */}
             <label className="field"><span>Student ID</span>
               <input name="studentId" value={form.studentId || ""} onChange={onChange} />
+            </label>
+            <label className="field"><span>Roll Number</span>
+              <input name="rollNo" value={form.rollNo || ""} onChange={onChange} placeholder="e.g. 101 or CS-2023-01" />
+            </label>
+            <label className="field"><span>Register Number</span>
+              <input name="registerNumber" value={form.registerNumber || ""} onChange={onChange} placeholder="e.g. REG2023001" />
             </label>
             <label className="field"><span>Branch</span>
               <input name="branch" value={form.branch || ""} onChange={onChange} />

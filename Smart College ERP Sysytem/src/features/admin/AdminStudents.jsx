@@ -93,6 +93,7 @@ export default function AdminStudents() {
           <tr>
             <th>Photo</th>
             <th>Student ID</th>
+            <th>Roll No</th>
             <th>Name</th>
             <th>Branch</th>
             <th>Semester</th>
@@ -104,7 +105,7 @@ export default function AdminStudents() {
         <tbody>
           {filteredRows.length === 0 ? (
             <tr>
-              <td colSpan={8} style={{ textAlign: "center" }}>
+              <td colSpan={9} style={{ textAlign: "center" }}>
                 No students found.
               </td>
             </tr>
@@ -133,6 +134,7 @@ export default function AdminStudents() {
                     )}
                   </td>
                   <td>{profile?.studentId || "-"}</td>
+                  <td><strong>{profile?.rollNo || "-"}</strong></td>
                   <td
                     className="clickable"
                     onClick={() => navigate(`/admin/students/${userId}`)}

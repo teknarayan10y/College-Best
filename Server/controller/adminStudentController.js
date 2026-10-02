@@ -53,7 +53,7 @@ async function updateStudentProfile(req, res) {
       // Contact
       'email','phone','altPhone','address','city','state','pincode',
       // Academic
-      'studentId','branch','semester', 'section','year','cgpa','skills','projects',
+      'studentId','rollNo','registerNumber','branch','semester', 'section','year','cgpa','skills','projects',
       // Links/Other
       'github','linkedin','portfolio','resumeLink','remarks',
       // Optionally: 'profileImage' (if you want to clear path)

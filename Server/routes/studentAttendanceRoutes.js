@@ -10,4 +10,7 @@ router.use(requireAuth, requireRole('student'));
 // or ?date=YYYY-MM-DD&session=FN|AN
 router.get('/', ctrl.myAttendance);
 
-module.exports = router;
+// GET /api/student/attendance/trends (Predictive 75% analysis, trajectory, & recovery metrics)
+router.get('/trends', ctrl.myAttendanceTrends);
+
+module.exports = router;

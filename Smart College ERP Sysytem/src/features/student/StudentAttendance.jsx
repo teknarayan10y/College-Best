@@ -15,6 +15,7 @@ export default function StudentAttendance() {
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [trends, setTrends] = useState(null);
 
   // Subject filter for daily table
   const [subjectFilter, setSubjectFilter] = useState('');
@@ -32,11 +33,23 @@ export default function StudentAttendance() {
     });
   }
 
+  async function loadTrends() {
+    try {
+      const res = await api.studentAttendanceTrends();
+      setTrends(res);
+    } catch (err) {
+      console.warn('Failed to load attendance trends:', err);
+    }
+  }
+
   async function loadAttendance() {
     setLoading(true);
     try {
       const params = useRange ? { from: fromDate, to: toDate } : { date };
-      const r = await api.studentAttendanceList(params);
+      const [r] = await Promise.all([
+        api.studentAttendanceList(params),
+        loadTrends()
+      ]);
       setRows(r.items || []);
     } catch {
       setRows([]);
@@ -174,6 +187,122 @@ export default function StudentAttendance() {
           </div>
         </div>
       </div>
+
+      {/* 🎯 INTELLIGENT ATTENDANCE TREND & 75% EXAM ELIGIBILITY PREDICTOR */}
+      {trends && (
+        <div style={{
+          marginTop: 18,
+          marginBottom: 16,
+          background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 41, 59, 0.9))',
+          border: '1px solid rgba(255, 255, 255, 0.12)',
+          borderRadius: 16,
+          padding: '20px 24px',
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.4)'
+        }}>
+          {/* Status Alert Banner */}
+          {trends.overall?.status === 'CRITICAL_DETAINED' ? (
+            <div style={{
+              background: 'rgba(239, 68, 68, 0.15)',
+              border: '1px solid #ef4444',
+              borderRadius: 12,
+              padding: '14px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              marginBottom: 16,
+              color: '#fca5a5'
+            }}>
+              <span style={{ fontSize: '1.6rem' }}>🚨</span>
+              <div style={{ flex: 1 }}>
+                <strong style={{ color: '#fff', fontSize: '0.95rem' }}>CRITICAL: Examination Ineligibility Alert (&lt; 75%)</strong>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.85rem' }}>
+                  Your aggregate attendance is <strong>{trends.overall?.percentage}%</strong>. Under university regulations, you are currently <strong>barred from semester exams</strong>. You must attend the next <strong>{trends.overall?.classesToAttend75} consecutive class session(s)</strong> without absence to regain eligibility.
+                </p>
+              </div>
+            </div>
+          ) : trends.overall?.status === 'WARNING_APPROACHING' ? (
+            <div style={{
+              background: 'rgba(245, 158, 11, 0.15)',
+              border: '1px solid #f59e0b',
+              borderRadius: 12,
+              padding: '14px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              marginBottom: 16,
+              color: '#fde68a'
+            }}>
+              <span style={{ fontSize: '1.6rem' }}>⚠️</span>
+              <div style={{ flex: 1 }}>
+                <strong style={{ color: '#fff', fontSize: '0.95rem' }}>WARNING: Attendance Approaching 75% Danger Zone</strong>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.85rem' }}>
+                  Your aggregate attendance is <strong>{trends.overall?.percentage}%</strong>. You can only afford to miss <strong>{trends.overall?.classesCanMiss75} more class session(s)</strong> before falling below the 75% examination threshold.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid #10b981',
+              borderRadius: 12,
+              padding: '12px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 14,
+              marginBottom: 16,
+              color: '#6ee7b7'
+            }}>
+              <span style={{ fontSize: '1.4rem' }}>✅</span>
+              <div style={{ flex: 1 }}>
+                <strong style={{ color: '#fff', fontSize: '0.95rem' }}>Exam Eligibility Status: SECURE</strong>
+                <p style={{ margin: '2px 0 0 0', fontSize: '0.85rem' }}>
+                  Your aggregate attendance is <strong>{trends.overall?.percentage}%</strong> (Above the mandatory 75% threshold). Safe bunk allowance: <strong>{trends.overall?.classesCanMiss75} class session(s)</strong>.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* 3 Metric Cards */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: 14
+          }}>
+            <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '14px 16px', borderRadius: 12, border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Trend Trajectory</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <span style={{ fontSize: '1.2rem' }}>
+                  {trends.overall?.trend === 'RISING' ? '📈' : trends.overall?.trend === 'FALLING' ? '📉' : '➡️'}
+                </span>
+                <strong style={{ fontSize: '1rem', color: trends.overall?.trend === 'RISING' ? '#34d399' : trends.overall?.trend === 'FALLING' ? '#f87171' : '#38bdf8' }}>
+                  {trends.overall?.trend}
+                </strong>
+              </div>
+              <small style={{ color: '#64748b', fontSize: '0.75rem' }}>Projected 30-day: {trends.overall?.projectedPercentage}%</small>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '14px 16px', borderRadius: 12, border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Recovery Classes Needed</span>
+              <div style={{ marginTop: 4 }}>
+                <strong style={{ fontSize: '1.2rem', color: trends.overall?.classesToAttend75 > 0 ? '#f87171' : '#34d399' }}>
+                  {trends.overall?.classesToAttend75 > 0 ? `${trends.overall?.classesToAttend75} Classes` : '0 (Already ≥ 75%)'}
+                </strong>
+              </div>
+              <small style={{ color: '#64748b', fontSize: '0.75rem' }}>Consecutive sessions to reach 75%</small>
+            </div>
+
+            <div style={{ background: 'rgba(255, 255, 255, 0.04)', padding: '14px 16px', borderRadius: 12, border: '1px solid rgba(255, 255, 255, 0.08)' }}>
+              <span style={{ fontSize: '0.75rem', color: '#94a3b8', textTransform: 'uppercase', fontWeight: 600 }}>Safe Bunk Cushion</span>
+              <div style={{ marginTop: 4 }}>
+                <strong style={{ fontSize: '1.2rem', color: '#38bdf8' }}>
+                  {trends.overall?.classesCanMiss75} Classes
+                </strong>
+              </div>
+              <small style={{ color: '#64748b', fontSize: '0.75rem' }}>Can miss before dropping &lt; 75%</small>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="day-view" style={{ marginTop: 16 }}>
