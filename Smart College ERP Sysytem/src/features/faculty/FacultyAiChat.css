@@ -1164,3 +1164,67 @@
     padding: 8px 16px 8px 10px;
   }
 }
+
+/* ── AI VOICE/TEXT MARK ENTRY COURSE SELECTOR BAR ── */
+.ai-mark-course-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  margin-bottom: 8px;
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  border-radius: 10px;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  backdrop-filter: blur(8px);
+}
+
+.ai-mark-course-icon {
+  color: #818cf8;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.ai-mark-course-label {
+  font-weight: 600;
+  color: #a5b4fc;
+  white-space: nowrap;
+  font-size: 0.76rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.ai-mark-course-select {
+  flex: 1;
+  min-width: 0;
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  border-radius: 7px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ai-mark-course-select:focus {
+  border-color: #818cf8;
+  box-shadow: 0 0 0 2px rgba(129, 140, 248, 0.2);
+}
+
+.ai-mark-course-select option {
+  background: #0f172a;
+  color: #f8fafc;
+}
+
+.ai-mark-course-auto {
+  font-size: 0.74rem;
+  color: #94a3b8;
+  font-style: italic;
+  padding: 3px 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+}

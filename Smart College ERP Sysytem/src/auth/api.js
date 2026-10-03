@@ -1,4 +1,4 @@
-// src/auth/api.js
+﻿// src/auth/api.js
 import { getToken, clearToken, clearUser } from './storage';
 const BASE = import.meta.env.VITE_API_BASE_URL;
 
@@ -183,6 +183,9 @@ facultyMarksSave: (payload) =>
 facultyDeleteMarks: (courseId, studentId) =>
   request(`/faculty/marks/${encodeURIComponent(courseId)}/${encodeURIComponent(studentId)}`, { method: 'DELETE' }),
 
+facultyAiMarkEntry: (payload) =>
+  request('/faculty/marks/ai-entry', { method: 'POST', body: JSON.stringify(payload) }),
+
   // Admin Faculty
   adminCreateFaculty: (body) =>
     request('/admin/faculty', { method: 'POST', body: JSON.stringify(body) }),
@@ -284,7 +287,7 @@ adminRevokeSession: (sessionId) =>
 studentMySubmission: (assignmentId) =>
   request(`/student/assignments/${encodeURIComponent(assignmentId)}/submissions/me`, { method: 'GET' }),
 
-// Student AI Assistant — supports optional file attachment (ChatGPT-style)
+// Student AI Assistant â€” supports optional file attachment (ChatGPT-style)
 studentAiChat: (message, file) => {
   if (file) {
     const fd = new FormData();
@@ -295,7 +298,7 @@ studentAiChat: (message, file) => {
   return request('/student/ai/chat', { method: 'POST', body: JSON.stringify({ message }) });
 },
 
-// Faculty AI Assistant — supports optional file attachment
+// Faculty AI Assistant â€” supports optional file attachment
 facultyAiChat: (message, file) => {
   if (file) {
     const fd = new FormData();
@@ -306,7 +309,7 @@ facultyAiChat: (message, file) => {
   return request('/faculty/ai/chat', { method: 'POST', body: JSON.stringify({ message }) });
 },
 
-// Admin AI Assistant — supports optional file attachment
+// Admin AI Assistant â€” supports optional file attachment
 adminAiChat: (message, file) => {
   if (file) {
     const fd = new FormData();
@@ -372,4 +375,5 @@ studentAttendanceTrends: () =>
     return request(`/student/exams/marks${qs ? `?${qs}` : ''}`);
   }
 };
+
 

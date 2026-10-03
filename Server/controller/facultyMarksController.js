@@ -306,7 +306,188 @@ async function facultyDeleteMarks(req, res) {
   }
 }
 
+
+// AI Voice/Text Mark Entry: automatically parses roll number, scores, and updates student marks
+async function facultyAiMarkEntry(req, res) {
+  try {
+    const { courseId, courseName, rollNo, semesterExam, assignment, practical } = req.body;
+    const facultyId = req.user?.id || req.user?._id;
+
+    if (!rollNo) {
+      return res.status(400).json({ message: 'Roll number is required for AI mark entry' });
+    }
+
+    // 1. Resolve Course
+    let course = null;
+    if (courseId && mongoose.Types.ObjectId.isValid(courseId)) {
+      course = await Course.findOne({ _id: courseId, faculty: facultyId });
+    }
+
+    if (!course && courseName) {
+      course = await Course.findOne({
+        faculty: facultyId,
+        $or: [
+          { name: { $regex: new RegExp(courseName, 'i') } },
+          { code: { $regex: new RegExp(courseName, 'i') } }
+        ]
+      });
+    }
+
+    if (!course) {
+      // Fallback: pick the first active course assigned to this faculty
+      const facultyCourses = await Course.find({ faculty: facultyId });
+      if (facultyCourses.length === 1) {
+        course = facultyCourses[0];
+      } else if (facultyCourses.length > 1) {
+        if (courseId) {
+          course = facultyCourses.find(c => c._id.toString() === courseId.toString());
+        }
+        if (!course) {
+          course = facultyCourses[0];
+        }
+      }
+    }
+
+    if (!course) {
+      return res.status(404).json({ message: 'No course found associated with your faculty profile. Please select or create a course first.' });
+    }
+
+    // 2. Find Student by Roll Number or Register Number
+    const StudentProfile = require('../models/StudentProfile');
+    const User = require('../models/User');
+
+    const rollStr = String(rollNo).trim();
+    const cleanPattern = rollStr.replace(/[^a-zA-Z0-9]/g, '');
+
+    // Search profile
+    let profile = await StudentProfile.findOne({
+      $or: [
+        { rollNo: { $regex: new RegExp('^' + cleanPattern + '$', 'i') } },
+        { registerNumber: { $regex: new RegExp('^' + cleanPattern + '$', 'i') } },
+        { rollNo: { $regex: new RegExp(cleanPattern, 'i') } },
+        { registerNumber: { $regex: new RegExp(cleanPattern, 'i') } }
+      ]
+    }).lean();
+
+    let studentUserId = null;
+    let studentName = 'Student';
+
+    if (profile) {
+      studentUserId = profile.user ? profile.user.toString() : null;
+      if (studentUserId) {
+        const u = await User.findById(studentUserId).select('firstName lastName name email').lean();
+        if (u) {
+          studentName = ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.name || 'Student';
+        }
+      }
+    }
+
+    if (!studentUserId) {
+      // Fallback: search in User collection
+      const u = await User.findOne({
+        $or: [
+          { rollNo: { $regex: new RegExp('^' + cleanPattern + '$', 'i') } },
+          { registerNumber: { $regex: new RegExp('^' + cleanPattern + '$', 'i') } },
+          { email: { $regex: new RegExp('^' + cleanPattern, 'i') } }
+        ]
+      }).select('_id firstName lastName name email').lean();
+
+      if (u) {
+        studentUserId = u._id.toString();
+        studentName = ((u.firstName || '') + ' ' + (u.lastName || '')).trim() || u.name || 'Student';
+      }
+    }
+
+    if (!studentUserId) {
+      return res.status(404).json({ message: 'No student found with roll number / register number: ' + rollNo });
+    }
+
+    // 3. Normalize & calculate marks
+    const se = Math.min(60, Math.max(0, Number(semesterExam) || 0));
+    const as = Math.min(20, Math.max(0, Number(assignment) || 0));
+    const pr = Math.min(20, Math.max(0, Number(practical) || 0));
+    const total = se + as + pr;
+
+    function calcGrade(tot) {
+      if (tot >= 95) return 'O';
+      if (tot >= 90) return 'A+';
+      if (tot >= 80) return 'A';
+      if (tot >= 70) return 'B+';
+      if (tot >= 60) return 'B';
+      if (tot >= 50) return 'C';
+      return 'F';
+    }
+
+    const grade = calcGrade(total);
+    const semester = Number(course.semester) || 1;
+    const academicYear = new Date().getFullYear().toString();
+
+    const marksDoc = {
+      courseId: course._id,
+      studentId: studentUserId,
+      facultyId,
+      semesterExam: se,
+      assignment: as,
+      practical: pr,
+      total,
+      grade,
+      semester,
+      academicYear,
+      isActive: true
+    };
+
+    const savedRecord = await Marks.findOneAndUpdate(
+      { courseId: course._id, studentId: studentUserId, facultyId },
+      marksDoc,
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+
+    // 4. Trigger student notification
+    try {
+      const { createNotification } = require('./notificationController');
+      createNotification({
+        recipientId: studentUserId,
+        senderId: facultyId,
+        type: 'MARKS_UPDATED',
+        title: 'Marks Published: ' + course.name,
+        message: 'Your marks for ' + course.name + ' have been updated. Semester: ' + se + '/60, Assignment: ' + as + '/20, Practical: ' + pr + '/20. Total: ' + total + '/100 (Grade: ' + grade + ').',
+        courseId: course._id,
+        metadata: {
+          courseName: course.name,
+          semesterExam: se,
+          assignment: as,
+          practical: pr,
+          total,
+          grade
+        }
+      }).catch(e => console.error('[Notification Trigger Notice]', e.message));
+    } catch (notifErr) {
+      // ignore
+    }
+
+    return res.json({
+      success: true,
+      studentName,
+      rollNo: rollStr,
+      courseName: course.name,
+      courseId: course._id,
+      semesterExam: se,
+      assignment: as,
+      practical: pr,
+      total,
+      grade,
+      marksRecordId: savedRecord._id,
+      message: 'Marks recorded successfully for ' + studentName + ' (' + rollStr + ')'
+    });
+
+  } catch (error) {
+    console.error('facultyAiMarkEntry error:', error);
+    return res.status(500).json({ message: 'Failed to record marks', error: error.message });
+  }
+}
+
 module.exports = {
+  facultyAiMarkEntry,
   facultyGetMarks,
   facultySaveMarks,
   facultyDeleteMarks

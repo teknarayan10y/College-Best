@@ -1138,11 +1138,9 @@ exports.chatWithFacultyAi = async (req, res) => {
     if (process.env.GEMINI_API_KEY) {
       const candidates = [
         process.env.GEMINI_MODEL,
-        'gemini-3.5-flash',
-        'gemini-3.1-flash-lite',
-        'gemini-flash-lite-latest',
-        'gemini-3.6-flash',
-        'gemini-flash-latest'
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+        'gemini-2.0-flash-exp'
       ].filter(Boolean);
 
       const uniqueModels = [...new Set(candidates)];
@@ -1242,7 +1240,11 @@ ${knowledgeContextText}
             break;
           }
         } catch (err) {
-          // Fall through to next model candidate
+          // If auth or quota error, stop immediately rather than waiting for multiple model timeouts
+          if (err.status === 401 || err.status === 403 || err.status === 429 || (err.message && (err.message.includes('401') || err.message.includes('403') || err.message.includes('API_KEY')))) {
+            console.warn('[Gemini Fast-Abort]', err.message?.slice(0, 100));
+            break;
+          }
         }
       }
 
